@@ -46,13 +46,16 @@ export async function call<T>(conn: Conn | null, action: string, args: object = 
   return data.result as T;
 }
 
-/** Ссылка-приглашение: …/finance/#k=<ключ>&u=<адрес скрипта>. Ключ не уходит на сервер — он в hash. */
-export function readConnFromHash(hash: string): Partial<Conn> | null {
-  const h = hash.replace(/^#/, '');
+/**
+ * Ссылка-приглашение: …/#k=<ключ>&u=<адрес скрипта> (финансы) и dk/du (трекер дня).
+ * Ключ не уходит на сервер — он в hash.
+ */
+export function readConnFromHash(hash: string, prefix = ''): Partial<Conn> | null {
+  const h = hash.replace(/^[^#]*#/, '').replace(/^#/, '');
   if (!h) return null;
   const p = new URLSearchParams(h);
-  const token = p.get('k') || undefined;
-  const url = p.get('u') || undefined;
+  const token = p.get(prefix + 'k') || undefined;
+  const url = p.get(prefix + 'u') || undefined;
   if (!token && !url) return null;
   return { token, url };
 }

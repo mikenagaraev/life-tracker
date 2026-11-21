@@ -162,3 +162,8 @@ h2 { margin: 0; font: 700 17px/1.3 var(--head); }
 .tree-row input { flex: 1; min-width: 0; height: 40px; }
 .skeleton { background: linear-gradient(90deg, var(--line2), var(--seg), var(--line2)); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 12px; }
 @keyframes sk { to { background-position: -200% 0; } }
+
+/* строка чипов, которая листается вбок (категории дня) */
+.chip-scroll { overflow-x: auto; flex-wrap: nowrap; margin: 0 -16px; padding: 2px 16px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.chip-scroll::-webkit-scrollbar { display: none; }
+.chip-scroll .chip { flex: none; white-space: nowrap; scroll-snap-align: start; }

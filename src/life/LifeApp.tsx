@@ -3,7 +3,9 @@ import { pref } from '../core/db';
 import { dayLabel, num, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
 import { BottomNav, type NavItem } from '../core/ui';
-import { DAY_TRACKER_URL } from '../day/DayApp';
+import { DaySettingsSheet, DayScreen } from '../day/DayScreen';
+import { buildModel, progress } from '../day/logic';
+import { useDay } from '../day/store';
 import { SyncStatus, TYPE_UI } from '../finance/components';
 import { currency } from '../finance/data';
 import { FinanceScreen, type FinTab } from '../finance/FinanceApp';
@@ -12,17 +14,43 @@ import { SettingsSheet, SetupScreen } from '../finance/Settings';
 import { useFinance } from '../finance/store';
 import type { OpType } from '../finance/types';
 
-type Tab = 'today' | FinTab;
+type Tab = 'today' | 'day' | FinTab;
 
 const NAV: NavItem[] = [
   { key: 'today', label: 'Сегодня', icon: 'home2' },
+  { key: 'day', label: 'День', icon: 'check' },
   { key: 'record', label: 'Запись', icon: 'plus' },
   { key: 'history', label: 'История', icon: 'list' },
   { key: 'stats', label: 'Статистика', icon: 'chart' },
-  { key: 'day', label: 'День', icon: 'check', href: '../life-tracker/day/' },
 ];
 
-function Today({ onRecord, onSettings, onHistory }: { onRecord: (t: OpType) => void; onSettings: () => void; onHistory: () => void }) {
+function DayCard({ onOpen }: { onOpen: () => void }) {
+  const days = useDay((s) => s.days);
+  const queue = useDay((s) => s.queue);
+  const conn = useDay((s) => s.conn);
+  const today = todayIso();
+  const p = useMemo(() => {
+    const raw = days[today];
+    if (!raw) return null;
+    const d = useDay.getState().view(today)!;
+    return progress(buildModel(d), d.states);
+  }, [days, queue, today]);
+  return (
+    <button type="button" className="card" onClick={onOpen} style={{ border: 0, textAlign: 'left', gap: 8 }}>
+      <div className="row label" style={{ gap: 6 }}><Icon name="check" size={16} color="var(--day)" stroke={2.4} />День</div>
+      {conn && p ? (
+        <>
+          <div className="stat-big">{p.done} <span style={{ fontSize: 16, color: 'var(--muted)' }}>из {p.total}</span></div>
+          <div className="bar-track"><div className="bar-fill" style={{ width: `${p.total ? (p.done / p.total) * 100 : 0}%`, background: 'var(--day)' }} /></div>
+        </>
+      ) : (
+        <div style={{ font: '700 16px var(--head)' }}>{conn ? 'Загружаю…' : 'Подключить трекер дня'}</div>
+      )}
+    </button>
+  );
+}
+
+function Today({ onRecord, onSettings, onHistory, onDay }: { onRecord: (t: OpType) => void; onSettings: () => void; onHistory: () => void; onDay: () => void }) {
   const ops = useFinance((s) => s.ops);
   const today = todayIso();
   const todays = useMemo(() => sortOps(Object.values(ops).filter((o) => o.date === today)), [ops, today]);
@@ -34,20 +62,16 @@ function Today({ onRecord, onSettings, onHistory }: { onRecord: (t: OpType) => v
       <div className="between" style={{ alignItems: 'flex-start' }}>
         <div className="col" style={{ gap: 2 }}>
           <div className="label">{dayLabel(today)}</div>
-          <h1 style={{ fontSize: 28 }}>Трекер жизни</h1>
+          <h1 style={{ fontSize: 26 }}>Трекер жизни</h1>
         </div>
         <div className="row" style={{ gap: 4 }}>
           <SyncStatus onSetup={onSettings} />
-          <button type="button" className="icon-btn" aria-label="Настройки" onClick={onSettings}><Icon name="gear" /></button>
+          <button type="button" className="icon-btn" aria-label="Настройки финансов" onClick={onSettings}><Icon name="gear" /></button>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-        <a className="card" href={DAY_TRACKER_URL} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit', gap: 8 }}>
-          <div className="row label" style={{ gap: 6 }}><Icon name="check" size={16} color="var(--day)" stroke={2.4} />День</div>
-          <div style={{ font: '700 16px var(--head)' }}>Открыть трекер дня</div>
-          <div className="muted">Переезжает сюда — пока текущая версия <Icon name="external" size={12} /></div>
-        </a>
+        <DayCard onOpen={onDay} />
         <button type="button" className="card" onClick={onHistory} style={{ border: 0, textAlign: 'left', gap: 8 }}>
           <div className="row label" style={{ gap: 6 }}><Icon name="shop" size={16} color="var(--exp)" stroke={2.2} />Потрачено сегодня</div>
           <div className="stat-big">{spent.length ? spent.join(' · ') : '0'}</div>
@@ -85,19 +109,32 @@ export function LifeApp() {
   const conn = useFinance((s) => s.conn);
   const [tab, setTab] = useState<Tab>(() => (pref('life:tab') as Tab) || 'today');
   const [startType, setStartType] = useState<OpType>('exp');
-  const [settings, setSettings] = useState(false);
+  const [settings, setSettings] = useState<'fin' | 'day' | null>(null);
   const go = (t: string) => { setTab(t as Tab); pref('life:tab', t); window.scrollTo(0, 0); };
 
-  if (!conn && net === 'setup') return <main className="page"><SetupScreen /></main>;
+  if (!conn && net === 'setup' && tab !== 'day') {
+    return (
+      <>
+        <main className="page"><SetupScreen /></main>
+        <BottomNav items={NAV} value={tab} onChange={go} />
+      </>
+    );
+  }
   return (
     <>
       <main className="page">
-        {tab === 'today'
-          ? <Today onSettings={() => setSettings(true)} onHistory={() => go('history')} onRecord={(t) => { setStartType(t); go('record'); }} />
-          : <FinanceScreen tab={tab} startType={tab === 'record' ? startType : undefined} onSettings={() => setSettings(true)} />}
+        {tab === 'today' ? (
+          <Today onSettings={() => setSettings('fin')} onHistory={() => go('history')} onDay={() => go('day')}
+            onRecord={(t) => { setStartType(t); go('record'); }} />
+        ) : tab === 'day' ? (
+          <DayScreen onSettings={() => setSettings('day')} />
+        ) : (
+          <FinanceScreen tab={tab} startType={tab === 'record' ? startType : undefined} onSettings={() => setSettings('fin')} />
+        )}
       </main>
       <BottomNav items={NAV} value={tab} onChange={go} />
-      {settings && <SettingsSheet onClose={() => setSettings(false)} />}
+      {settings === 'fin' && <SettingsSheet onClose={() => setSettings(null)} />}
+      {settings === 'day' && <DaySettingsSheet onClose={() => setSettings(null)} />}
     </>
   );
 }
