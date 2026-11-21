@@ -1,135 +1,139 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { pref } from '../core/db';
 import { dayLabel, num, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
-import { BottomNav, type NavItem } from '../core/ui';
+import { BottomNav, Seg, type NavItem } from '../core/ui';
 import { DaySettingsSheet, DayScreen } from '../day/DayScreen';
-import { buildModel, progress } from '../day/logic';
+import { PLAN, buildModel, norm, progress } from '../day/logic';
 import { useDay } from '../day/store';
-import { SyncStatus, TYPE_UI } from '../finance/components';
 import { currency } from '../finance/data';
 import { FinanceScreen, type FinTab } from '../finance/FinanceApp';
-import { dayTotals, sortOps } from '../finance/logic';
+import { dayTotals } from '../finance/logic';
 import { SettingsSheet, SetupScreen } from '../finance/Settings';
 import { useFinance } from '../finance/store';
-import type { OpType } from '../finance/types';
 
-type Tab = 'today' | 'day' | FinTab;
+type Tab = 'home' | 'day' | 'fin';
 
 const NAV: NavItem[] = [
-  { key: 'today', label: 'Сегодня', icon: 'home2' },
+  { key: 'home', label: 'Главная', icon: 'home2' },
   { key: 'day', label: 'День', icon: 'check' },
-  { key: 'record', label: 'Запись', icon: 'plus' },
-  { key: 'history', label: 'История', icon: 'list' },
-  { key: 'stats', label: 'Статистика', icon: 'chart' },
+  { key: 'fin', label: 'Финансы', icon: 'chart' },
 ];
+
+function BigCard({ color, icon, title, onClick, children }: { color: string; icon: string; title: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="card" onClick={onClick} style={{ border: 0, textAlign: 'left', gap: 14, padding: 20 }}>
+      <div className="between">
+        <div className="row" style={{ gap: 12 }}>
+          <span style={{ width: 44, height: 44, borderRadius: 14, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={icon} size={24} stroke={2.2} />
+          </span>
+          <h2 style={{ fontSize: 20 }}>{title}</h2>
+        </div>
+        <Icon name="chevRight" size={22} color="var(--faint)" />
+      </div>
+      {children}
+    </button>
+  );
+}
 
 function DayCard({ onOpen }: { onOpen: () => void }) {
   const days = useDay((s) => s.days);
   const queue = useDay((s) => s.queue);
   const conn = useDay((s) => s.conn);
   const today = todayIso();
-  const p = useMemo(() => {
-    const raw = days[today];
-    if (!raw) return null;
+  const info = useMemo(() => {
+    if (!days[today]) return null;
     const d = useDay.getState().view(today)!;
-    return progress(buildModel(d), d.states);
+    const m = buildModel(d);
+    const p = progress(m, d.states);
+    const planned = m.cats.reduce((n, c) => n + c.items.filter((i) => norm(i.color) === PLAN).length + c.oneoffs.filter((o) => norm(o.color) === PLAN).length, 0);
+    return { ...p, planned };
   }, [days, queue, today]);
   return (
-    <button type="button" className="card" onClick={onOpen} style={{ border: 0, textAlign: 'left', gap: 8 }}>
-      <div className="row label" style={{ gap: 6 }}><Icon name="check" size={16} color="var(--day)" stroke={2.4} />День</div>
-      {conn && p ? (
-        <>
-          <div className="stat-big">{p.done} <span style={{ fontSize: 16, color: 'var(--muted)' }}>из {p.total}</span></div>
-          <div className="bar-track"><div className="bar-fill" style={{ width: `${p.total ? (p.done / p.total) * 100 : 0}%`, background: 'var(--day)' }} /></div>
-        </>
+    <BigCard color="var(--day)" icon="check" title="Трекер дня" onClick={onOpen}>
+      {!conn ? (
+        <div className="muted" style={{ fontSize: 14 }}>Не подключён — нажми, чтобы подключить таблицу.</div>
+      ) : !info ? (
+        <div className="muted" style={{ fontSize: 14 }}>Загружаю сегодняшний день…</div>
       ) : (
-        <div style={{ font: '700 16px var(--head)' }}>{conn ? 'Загружаю…' : 'Подключить трекер дня'}</div>
+        <>
+          <div className="row" style={{ alignItems: 'baseline', gap: 8 }}>
+            <span className="stat-big">{info.done}</span>
+            <span className="muted" style={{ fontSize: 15 }}>из {info.total} отмечено</span>
+          </div>
+          <div className="bar-track"><div className="bar-fill" style={{ width: `${info.total ? (info.done / info.total) * 100 : 0}%`, background: 'var(--day)' }} /></div>
+          <div className="muted" style={{ fontSize: 14 }}>{info.planned ? `В планах на сегодня: ${info.planned}` : 'На сегодня ничего не запланировано'}</div>
+        </>
       )}
-    </button>
+    </BigCard>
   );
 }
 
-function Today({ onRecord, onSettings, onHistory, onDay }: { onRecord: (t: OpType) => void; onSettings: () => void; onHistory: () => void; onDay: () => void }) {
+function FinanceCard({ onOpen }: { onOpen: () => void }) {
   const ops = useFinance((s) => s.ops);
+  const conn = useFinance((s) => s.conn);
   const today = todayIso();
-  const todays = useMemo(() => sortOps(Object.values(ops).filter((o) => o.date === today)), [ops, today]);
+  const todays = useMemo(() => Object.values(ops).filter((o) => o.date === today), [ops, today]);
   const totals = dayTotals(todays);
   const spent = totals.filter((t) => t.exp).map((t) => `${num(t.exp)} ${currency(t.cur).sym}`);
-  const got = totals.filter((t) => t.inc).map((t) => `+${num(t.inc)} ${currency(t.cur).sym}`);
+  const got = totals.filter((t) => t.inc).map((t) => `${num(t.inc)} ${currency(t.cur).sym}`);
   return (
-    <>
-      <div className="between" style={{ alignItems: 'flex-start' }}>
-        <div className="col" style={{ gap: 2 }}>
-          <div className="label">{dayLabel(today)}</div>
-          <h1 style={{ fontSize: 26 }}>Трекер жизни</h1>
-        </div>
-        <div className="row" style={{ gap: 4 }}>
-          <SyncStatus onSetup={onSettings} />
-          <button type="button" className="icon-btn" aria-label="Настройки финансов" onClick={onSettings}><Icon name="gear" /></button>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-        <DayCard onOpen={onDay} />
-        <button type="button" className="card" onClick={onHistory} style={{ border: 0, textAlign: 'left', gap: 8 }}>
-          <div className="row label" style={{ gap: 6 }}><Icon name="shop" size={16} color="var(--exp)" stroke={2.2} />Потрачено сегодня</div>
-          <div className="stat-big">{spent.length ? spent.join(' · ') : '0'}</div>
-          <div className="muted">{got.length ? `${got.join(' · ')} доход` : 'доходов нет'}</div>
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-        {(['exp', 'inc', 'oth'] as OpType[]).map((t) => (
-          <button key={t} type="button" onClick={() => onRecord(t)}
-            style={{ height: 76, border: 0, borderRadius: 18, background: TYPE_UI[t].color, color: 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 13, fontWeight: 600 }}>
-            <Icon name="plus" size={22} stroke={2.2} />{t === 'exp' ? 'Покупка' : t === 'inc' ? 'Доход' : 'Другое'}
-          </button>
-        ))}
-      </div>
-
-      <section className="card" style={{ gap: 4 }}>
-        <div className="between"><h2>Сегодня в финансах</h2><span className="muted">{todays.length ? `${todays.length} зап.` : ''}</span></div>
-        {!todays.length && <div className="muted">Пока ничего не записано.</div>}
-        {todays.slice(0, 5).map((o) => (
-          <div key={o.id} className="between" style={{ padding: '8px 0', borderTop: '1px solid var(--line2)' }}>
-            <span className="ellipsis">{o.cat}{o.sub ? ` › ${o.sub}` : ''}{o.comment ? <span className="muted"> · {o.comment}</span> : null}</span>
-            <b style={{ color: o.type === 'inc' ? 'var(--inc)' : o.type === 'oth' ? 'var(--oth)' : 'var(--ink)', flex: 'none' }}>
-              {TYPE_UI[o.type].sign}{num(o.amount)} {currency(o.cur).sym}
-            </b>
+    <BigCard color="var(--exp)" icon="chart" title="Трекер финансов" onClick={onOpen}>
+      {!conn ? (
+        <div className="muted" style={{ fontSize: 14 }}>Не подключён — нажми, чтобы подключить таблицу.</div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+            <div className="col" style={{ gap: 2 }}>
+              <span className="muted">Потрачено сегодня</span>
+              <span style={{ font: '800 22px var(--head)' }}>{spent.length ? spent.join(' · ') : '0'}</span>
+            </div>
+            <div className="col" style={{ gap: 2 }}>
+              <span className="muted">Доход сегодня</span>
+              <span style={{ font: '800 22px var(--head)', color: got.length ? 'var(--inc)' : undefined }}>{got.length ? `+${got.join(' · +')}` : '0'}</span>
+            </div>
           </div>
-        ))}
-      </section>
-    </>
+          <div className="muted" style={{ fontSize: 14 }}>{todays.length ? `Записей за сегодня: ${todays.length}` : 'Сегодня ещё ничего не записано'}</div>
+        </>
+      )}
+    </BigCard>
   );
 }
 
 export function LifeApp() {
-  const net = useFinance((s) => s.net);
-  const conn = useFinance((s) => s.conn);
-  const [tab, setTab] = useState<Tab>(() => (pref('life:tab') as Tab) || 'today');
-  const [startType, setStartType] = useState<OpType>('exp');
+  const finConn = useFinance((s) => s.conn);
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = pref('life:tab');
+    return t === 'day' || t === 'fin' ? t : 'home';
+  });
+  const [finTab, setFinTab] = useState<FinTab>(() => (pref('life:fin') as FinTab) || 'record');
   const [settings, setSettings] = useState<'fin' | 'day' | null>(null);
   const go = (t: string) => { setTab(t as Tab); pref('life:tab', t); window.scrollTo(0, 0); };
+  const goFin = (t: FinTab) => { setFinTab(t); pref('life:fin', t); window.scrollTo(0, 0); };
 
-  if (!conn && net === 'setup' && tab !== 'day') {
-    return (
-      <>
-        <main className="page"><SetupScreen /></main>
-        <BottomNav items={NAV} value={tab} onChange={go} />
-      </>
-    );
-  }
   return (
     <>
       <main className="page">
-        {tab === 'today' ? (
-          <Today onSettings={() => setSettings('fin')} onHistory={() => go('history')} onDay={() => go('day')}
-            onRecord={(t) => { setStartType(t); go('record'); }} />
-        ) : tab === 'day' ? (
-          <DayScreen onSettings={() => setSettings('day')} />
-        ) : (
-          <FinanceScreen tab={tab} startType={tab === 'record' ? startType : undefined} onSettings={() => setSettings('fin')} />
+        {tab === 'home' && (
+          <>
+            <div className="col" style={{ gap: 2, paddingTop: 4 }}>
+              <div className="label">{dayLabel(todayIso())}</div>
+              <h1 style={{ fontSize: 30 }}>Трекер жизни</h1>
+            </div>
+            <DayCard onOpen={() => go('day')} />
+            <FinanceCard onOpen={() => { goFin('record'); go('fin'); }} />
+          </>
+        )}
+        {tab === 'day' && <DayScreen onSettings={() => setSettings('day')} />}
+        {tab === 'fin' && (
+          !finConn ? <SetupScreen /> : (
+            <>
+              <Seg<FinTab> small label="Раздел финансов" value={finTab} onChange={goFin}
+                items={[{ key: 'record', label: 'Добавить' }, { key: 'history', label: 'История' }, { key: 'stats', label: 'Статистика' }]} />
+              <FinanceScreen tab={finTab} onSettings={() => setSettings('fin')} />
+            </>
+          )
         )}
       </main>
       <BottomNav items={NAV} value={tab} onChange={go} />

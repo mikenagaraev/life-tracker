@@ -55,7 +55,7 @@ export function History() {
       {!ready && <div className="skeleton" style={{ height: 180 }} />}
       {ready && !days.groups.length && (
         <div className="card muted" style={{ fontSize: 14 }}>
-          {q || filter !== 'all' ? 'Ничего не нашлось.' : lastSync ? 'Записей пока нет — добавь первую на вкладке «Запись».' : 'Загружаю записи из таблицы…'}
+          {q || filter !== 'all' ? 'Ничего не нашлось.' : lastSync ? 'Записей пока нет — добавь первую на вкладке «Добавить».' : 'Загружаю записи из таблицы…'}
         </div>
       )}
 

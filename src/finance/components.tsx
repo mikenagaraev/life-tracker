@@ -17,7 +17,7 @@ export function SyncStatus({ onSetup }: { onSetup?: () => void }) {
   const n = useFinance(pendingCount);
   const error = useFinance((s) => s.error);
   const sync = useFinance((s) => s.sync);
-  let cls = '', icon = 'cloud', text = 'Drive · всё сохранено';
+  let cls = '', icon = 'cloud', text = 'Сохранено';
   if (net === 'setup') { cls = 'warn'; icon = 'alert'; text = 'Подключить таблицу'; }
   else if (net === 'auth') { cls = 'err'; icon = 'alert'; text = 'Неверный ключ'; }
   else if (net === 'offline') { cls = 'warn'; icon = 'cloudOff'; text = n ? `Офлайн · ${n} ждут` : 'Офлайн'; }

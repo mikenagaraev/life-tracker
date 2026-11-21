@@ -44,7 +44,7 @@ export function FinanceScreen({ tab, startType, onSettings }: { tab: FinTab; sta
 }
 
 export const FIN_NAV: NavItem[] = [
-  { key: 'record', label: 'Запись', icon: 'plus' },
+  { key: 'record', label: 'Добавить', icon: 'plus' },
   { key: 'history', label: 'История', icon: 'list' },
   { key: 'stats', label: 'Статистика', icon: 'chart' },
 ];
