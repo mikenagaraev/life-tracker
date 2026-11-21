@@ -45,7 +45,9 @@ export const monthGen = (m: number) => MONTHS_GEN[m];
 
 /** Число по-русски: 1 234,5 (без лишних нулей). */
 export function num(v: number, maxFrac = 2): string {
-  const s = Math.abs(v).toFixed(maxFrac).replace(/\.?0+$/, '');
+  let s = Math.abs(v).toFixed(maxFrac);
+  if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  if (s === '0') return '0';
   const [int, frac] = s.split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return (v < 0 ? '−' : '') + grouped + (frac ? ',' + frac : '');

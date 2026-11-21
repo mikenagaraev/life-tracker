@@ -110,6 +110,11 @@ describe('формат', () => {
   it('числа и суммы', () => {
     expect(num(1234.5)).toBe('1 234,5');
     expect(num(24)).toBe('24');
+    expect(num(0, 0)).toBe('0');
+    expect(num(0)).toBe('0');
+    expect(num(100, 0)).toBe('100');
+    expect(num(10.5)).toBe('10,5');
+    expect(num(-3.25)).toBe('−3,25');
     expect(parseAmount('1 234,50')).toBe(1234.5);
     expect(Number.isNaN(parseAmount('abc'))).toBe(true);
   });

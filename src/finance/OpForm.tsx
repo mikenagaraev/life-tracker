@@ -140,7 +140,9 @@ export function OpForm({ initial, onDone, aside, startType }: { initial?: Op; on
               {currency(code).sym} {currency(code).name}
             </button>
           ))}
-          <span style={{ width: 8 }} />
+        </div>
+        <div className="row" role="radiogroup" aria-label="Способ оплаты" style={{ gap: 6 }}>
+          <span className="label" style={{ marginRight: 4 }}>Оплата</span>
           {(['Карта', 'Кэш'] as Pay[]).map((p) => (
             <button key={p} type="button" role="radio" aria-checked={p === pay} className={'chip' + (p === pay ? ' on' : '')} onClick={() => setPay(p)}>{p}</button>
           ))}

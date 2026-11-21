@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { ApiError, call, type Conn } from '../core/api';
 import { load, save } from '../core/db';
-import { todayIso } from '../core/format';
 import { DEFAULT_CATS, DEFAULT_MINE } from './data';
 import { ackPending, mergeOps } from './logic';
 import type { CatNode, Op, Rates } from './types';
@@ -157,21 +156,13 @@ export const useFinance = create<FinanceState>((set, get) => ({
           set({ pending });
           await save(K.pending, pending);
         }
-        // 2. Категории и настройки: локальные правки важнее, иначе берём с сервера.
+        // 2. Локальные правки категорий и настроек важнее серверных.
         if (get().catsDirty) {
           const snapshot = get().cats;
           await call(s.conn, 'saveCats', { cats: snapshot });
           if (get().cats === snapshot) {
             set({ catsDirty: false });
             await save(K.catsDirty, false);
-          }
-        } else {
-          const remote = await call<CatNode[]>(s.conn, 'getCats');
-          if (remote.length) {
-            set({ cats: remote });
-            await save(K.cats, remote);
-          } else {
-            await call(s.conn, 'saveCats', { cats: get().cats }); // первый запуск: заливаем стартовое дерево
           }
         }
         if (get().settingsDirty) {
@@ -181,17 +172,24 @@ export const useFinance = create<FinanceState>((set, get) => ({
             set({ settingsDirty: false });
             await save(K.settingsDirty, false);
           }
-        } else {
-          const remote = await call<Partial<Settings> | null>(s.conn, 'getSettings', { key: 'finance' });
-          if (remote) {
-            const settings = { ...DEFAULT_SETTINGS, ...remote };
-            set({ settings });
-            await save(K.settings, settings);
+        }
+        // 3. Всё остальное — одним запросом.
+        const r = await call<{ ops: Op[]; cats: CatNode[]; settings: Partial<Settings> | null; rates: Rates }>(s.conn, 'pull');
+        if (!get().catsDirty) {
+          if (r.cats.length) {
+            set({ cats: r.cats });
+            await save(K.cats, r.cats);
+          } else {
+            await call(s.conn, 'saveCats', { cats: get().cats }); // первый запуск: заливаем стартовое дерево
           }
         }
-        // 3. Свежая копия операций и курс дня.
-        const server = await call<Op[]>(s.conn, 'list');
-        const rates = get().rates?.date === todayIso() ? get().rates : await call<Rates>(s.conn, 'rates', { date: todayIso() }).catch(() => get().rates);
+        if (!get().settingsDirty && r.settings) {
+          const settings = { ...DEFAULT_SETTINGS, ...r.settings };
+          set({ settings });
+          await save(K.settings, settings);
+        }
+        const server = r.ops;
+        const rates = r.rates?.gelPer?.USD ? r.rates : get().rates;
         const lastSync = Date.now();
         set({ server, rates, lastSync, ops: mergeOps(server, get().pending), net: 'idle' });
         await Promise.all([save(K.server, server), save(K.rates, rates), save(K.lastSync, lastSync)]);
