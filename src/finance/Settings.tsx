@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import type { Conn } from '../core/api';
+import { readConnFromHash, type Conn } from '../core/api';
 import { Icon } from '../core/icons';
 import { Seg, Sheet, toast } from '../core/ui';
 import { uid } from '../core/format';
@@ -20,8 +20,13 @@ export function ConnectForm({ onDone }: { onDone?: () => void }) {
   const [busy, setBusy] = useState(false);
 
   async function connect() {
-    const c: Conn = { url: url.trim(), token: token.trim() };
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(c.url)) return toast('Ссылка должна выглядеть как https://script.google.com/macros/s/…/exec');
+    let c: Conn = { url: url.trim(), token: token.trim() };
+    // В поле можно вставить ссылку-приглашение целиком: …/finance/#k=<ключ>&u=<адрес>
+    if (c.url.includes('#')) {
+      const fromLink = readConnFromHash(c.url.slice(c.url.indexOf('#')));
+      if (fromLink?.url && fromLink.token) c = { url: fromLink.url, token: fromLink.token };
+    }
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(c.url)) return toast('Вставь ссылку-приглашение или адрес вида https://script.google.com/macros/s/…/exec');
     if (!c.token) return toast('Вставь ключ');
     setBusy(true);
     await setConn(c);
@@ -36,16 +41,16 @@ export function ConnectForm({ onDone }: { onDone?: () => void }) {
   return (
     <div className="col" style={{ gap: 12 }}>
       <label className="col" style={{ gap: 6 }}>
-        <span className="label">Ссылка на скрипт таблицы</span>
-        <input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" autoCapitalize="off" autoCorrect="off" />
+        <span className="label">Ссылка-приглашение или адрес скрипта</span>
+        <input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Вставь ссылку-приглашение" autoCapitalize="off" autoCorrect="off" />
       </label>
       <label className="col" style={{ gap: 6 }}>
-        <span className="label">Ключ</span>
+        <span className="label">Ключ (не нужен, если вставил приглашение)</span>
         <input className="field" value={token} onChange={(e) => setToken(e.target.value)} type="password" autoCapitalize="off" autoCorrect="off" />
       </label>
       {(net === 'auth' || net === 'error') && error && <div className="banner err"><Icon name="alert" size={20} /><div>{error}</div></div>}
       <button type="button" className="primary" disabled={busy} onClick={connect}>{busy ? 'Проверяю…' : 'Подключить'}</button>
-      <div className="muted">Проще всего открыть на телефоне ссылку-приглашение — она заполнит оба поля сама.</div>
+      <div className="muted">Скопируй ссылку-приглашение и вставь её в первое поле — ключ подставится сам.</div>
     </div>
   );
 }
