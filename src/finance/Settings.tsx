@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { readConnFromHash, type Conn } from '../core/api';
+import { useDay } from '../day/store';
 import { Icon } from '../core/icons';
 import { Seg, Sheet, toast } from '../core/ui';
 import { uid } from '../core/format';
@@ -22,9 +23,13 @@ export function ConnectForm({ onDone }: { onDone?: () => void }) {
   async function connect() {
     let c: Conn = { url: url.trim(), token: token.trim() };
     // В поле можно вставить ссылку-приглашение целиком: …/finance/#k=<ключ>&u=<адрес>
-    if (c.url.includes('#')) {
-      const fromLink = readConnFromHash(c.url.slice(c.url.indexOf('#')));
-      if (fromLink?.url && fromLink.token) c = { url: fromLink.url, token: fromLink.token };
+    const hash = c.url.includes('#') ? c.url.slice(c.url.indexOf('#')) : '';
+    if (hash) {
+      const fin = readConnFromHash(hash);
+      if (fin?.url && fin.token) c = { url: fin.url, token: fin.token };
+      // Общее приглашение «Трекера жизни» (#k&u&dk&du) заодно подключает трекер дня.
+      const day = readConnFromHash(hash, 'd');
+      if (day?.url && day.token) void useDay.getState().setConn({ url: day.url, token: day.token });
     }
     if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(c.url)) return toast('Вставь ссылку-приглашение или адрес вида https://script.google.com/macros/s/…/exec');
     if (!c.token) return toast('Вставь ключ');
