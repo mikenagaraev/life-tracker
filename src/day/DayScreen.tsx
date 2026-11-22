@@ -7,7 +7,7 @@ import { ConfirmButton, Seg, Sheet, toast } from '../core/ui';
 import { ChartsView } from './Charts';
 import { GoalsView } from './GoalsScreen';
 import { ReportView } from './Report';
-import { PLAN, buildModel, catCounts, norm, progress, searchItems, stateOf, type Category } from './logic';
+import { PLAN, buildModel, catCounts, isDone, norm, progress, searchItems, stateOf, type Category } from './logic';
 import { DayEditor } from './DayEditor';
 import { useDay } from './store';
 import type { DayData, DayItem, DayState, OneOff } from './types';
@@ -129,6 +129,15 @@ function CategoryCard({ cat, states, focusRow }: { cat: Category; states: DaySta
   const setOneOffColor = useDay((s) => s.setOneOffColor);
   const deleteOneOff = useDay((s) => s.deleteOneOff);
   const [open, setOpen] = useState<string | null>(focusRow ? `r${focusRow}` : null);
+  const [closed, setClosed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(pref('day:subClosed') || '[]')); } catch { return new Set(); }
+  });
+  const toggleSub = (k: string) => {
+    const next = new Set(closed);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    setClosed(next);
+    pref('day:subClosed', JSON.stringify([...next]));
+  };
   const groups: { sub: string; items: DayItem[] }[] = [];
   for (const it of cat.items) {
     const g = groups[groups.length - 1];
@@ -145,8 +154,18 @@ function CategoryCard({ cat, states, focusRow }: { cat: Category; states: DaySta
       </div>
       {groups.map((g, gi) => (
         <div key={gi}>
-          {g.sub && <div className="caps" style={{ padding: '10px 16px 4px' }}>{g.sub}</div>}
-          {g.items.map((it) => (
+          {g.sub && (() => {
+            const k = `${cat.name}:${g.sub}`, isClosed = closed.has(k) && !g.items.some((it) => it.row === focusRow);
+            const done = g.items.filter((it) => isDone(it.color, states)).length;
+            return (
+              <button type="button" className="sub-head" aria-expanded={!isClosed} onClick={() => toggleSub(k)}>
+                <Icon name={isClosed ? 'chevRight' : 'chevDown'} size={14} stroke={2.4} />
+                <span className="caps" style={{ flex: 1 }}>{g.sub}</span>
+                <span className="muted">{done} из {g.items.length}</span>
+              </button>
+            );
+          })()}
+          {!(g.sub && closed.has(`${cat.name}:${g.sub}`) && !g.items.some((it) => it.row === focusRow)) && g.items.map((it) => (
             <ItemRow key={`${it.row}-${it.name}`} name={it.name} color={it.color} states={states} open={open === `r${it.row}`}
               highlight={focusRow === it.row}
               onToggle={() => setOpen(open === `r${it.row}` ? null : `r${it.row}`)}
