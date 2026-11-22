@@ -65,7 +65,7 @@ export const useGoals = create<GoalsStore>((set, get) => {
         goals = r.goals;
         const ids = new Set(sent.map((o) => o.id));
         const queue = get().queue.filter((o) => !ids.has(o.id));
-        set({ queue });
+        set({ queue, goals }); // вместе со свежим списком — иначе на миг мелькнёт старый
         void save(K.queue, queue);
         const bad = r.results.filter((x) => x.status === 'error');
         if (bad.length) toast(`Цели: ${bad[0].error}${bad.length > 1 ? ` (и ещё ${bad.length - 1})` : ''}`);
