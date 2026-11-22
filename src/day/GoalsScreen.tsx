@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { moveItem, useReorder } from '../core/reorder';
 import { pref } from '../core/db';
 import { parseIso, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
@@ -103,7 +104,7 @@ export function GoalsView({ dayCats }: { dayCats: string[] }) {
           })()}
           {goals.length > 0 && !stF && (
             <section className="card flush">
-              {kids(goals, '').filter((t) => !tag || t.tag === tag).map((g) => <Node key={g.id} g={g} depth={0} ctx={ctx} />)}
+              <GoalChildren parent="" depth={0} ctx={ctx} only={tag ? (t) => t.tag === tag : undefined} />
             </section>
           )}
           {stF && (() => {
@@ -186,14 +187,28 @@ function DueChip({ g, today }: { g: Goal; today: string }) {
   return d ? <span className={`gl-due ${d.kind}`}>{d.prefix}{dateShort(g.due)}</span> : null;
 }
 
-function Node({ g, depth, ctx }: { g: Goal; depth: number; ctx: TreeCtx }) {
+interface DragProps { ref: (el: HTMLElement | null) => void; style?: CSSProperties; grip: ReturnType<ReturnType<typeof useReorder>['grip']> }
+
+/** Подзадачи одного родителя: перетаскивание за ⠿ меняет порядок среди соседей (вместе с их ветками). */
+function GoalChildren({ parent, depth, ctx, only }: { parent: string; depth: number; ctx: TreeCtx; only?: (g: Goal) => boolean }) {
+  const reorder = useGoals((s) => s.reorder);
+  const all = kids(ctx.goals, parent);
+  const list = only ? all.filter(only) : all;
+  const ids = list.map((g) => g.id);
+  // при фильтре по тегу видны не все соседи — порядок тогда не трогаем
+  const drag = useReorder(ids, (from, to) => { reorder(parent, moveItem(ids, from, to)); toast('Порядок изменён'); }, !only);
+  return <>{list.map((c) => <Node key={c.id} g={c} depth={depth} ctx={ctx} drag={{ ref: drag.register(c.id), style: drag.styleFor(c.id), grip: drag.grip(c.id) }} />)}</>;
+}
+
+function Node({ g, depth, ctx, drag }: { g: Goal; depth: number; ctx: TreeCtx; drag?: DragProps }) {
   const ch = kids(ctx.goals, g.id);
   const st = stats(ctx.goals, g.id);
   const isClosed = ctx.closed.has(g.id);
   const isFocus = g.id === ctx.focus;
   return (
-    <>
-      <div className={`gl-row ${g.status}`} style={{ paddingLeft: 6 + Math.min(depth, 6) * 18 }}>
+    <div ref={drag?.ref} style={drag?.style}>
+      <div className={`gl-row ${g.status}`} style={{ paddingLeft: 2 + Math.min(depth, 6) * 18 }}>
+        {drag ? <button type="button" className="grip-btn" aria-label={`Перетащить «${g.title}»`} {...drag.grip}><Icon name="grip" size={16} /></button> : <span style={{ width: 30, flex: 'none' }} />}
         {ch.length ? (
           <button type="button" className="icon-btn" style={{ width: 28, height: 36 }} aria-expanded={!isClosed} aria-label={isClosed ? 'Развернуть' : 'Свернуть'} onClick={() => ctx.toggle(g.id)}>
             <Icon name={isClosed ? 'chevRight' : 'chevDown'} size={15} stroke={2.4} />
@@ -215,8 +230,8 @@ function Node({ g, depth, ctx }: { g: Goal; depth: number; ctx: TreeCtx }) {
           <Icon name="other" size={20} />
         </button>
       </div>
-      {!isClosed && ch.map((c) => <Node key={c.id} g={c} depth={depth + 1} ctx={ctx} />)}
-    </>
+      {!isClosed && ch.length > 0 && <GoalChildren parent={g.id} depth={depth + 1} ctx={ctx} />}
+    </div>
   );
 }
 

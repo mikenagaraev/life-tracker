@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, buildModel, categoryMoveTarget, compactOps, droppedColors, isDone, itemMoveTarget, keyOf, progress, stateOf, validateStates } from './logic';
+import { applyOps, buildModel, categoryDropTarget, categoryMoveTarget, itemDropTarget, compactOps, droppedColors, isDone, itemMoveTarget, keyOf, progress, stateOf, validateStates } from './logic';
 import type { DayData, DayItem, DayOp } from './types';
 
 const STATES = [
@@ -106,6 +106,14 @@ describe('перемещения дел и категорий', () => {
     expect(categoryMoveTarget(m, 1, -1)).toBe(12);
     expect(categoryMoveTarget(m, 0, 1)).toBe(20); // перед итогами дня («Удовольствие»)
     expect(categoryMoveTarget(m, 1, 1)).toBeNull();
+  });
+  it('перетаскивание через несколько позиций', () => {
+    const work = m.cats[0]; // 13, 14, 15
+    expect(itemDropTarget(work, 0, 2)).toBe(16); // в конец категории
+    expect(itemDropTarget(work, 2, 0)).toBe(13);
+    expect(itemDropTarget(work, 1, 1)).toBeNull();
+    expect(categoryDropTarget(m, 1, 0)).toBe(12);
+    expect(categoryDropTarget(m, 0, 1)).toBe(20);
   });
 });
 

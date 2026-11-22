@@ -36,6 +36,7 @@ export const PATHS: Record<string, string> = {
   chevLeft: 'M15 6l-6 6 6 6',
   chevRight: 'M9 6l6 6-6 6',
   up: 'M6 15l6-6 6 6',
+  grip: circ(9, 6, 1) + circ(15, 6, 1) + circ(9, 12, 1) + circ(15, 12, 1) + circ(9, 18, 1) + circ(15, 18, 1),
   down: 'M6 9l6 6 6-6',
   close: 'M6 6l12 12M18 6L6 18',
   search: 'M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13zM15.5 15.5L20 20',

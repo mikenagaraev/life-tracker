@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '../core/icons';
 import { ConfirmButton, toast } from '../core/ui';
-import { PLAN, SKIP, categoryMoveTarget, droppedColors, itemMoveTarget, validateStates, type DayModel } from './logic';
+import { useReorder } from '../core/reorder';
+import { PLAN, SKIP, categoryDropTarget, categoryMoveTarget, droppedColors, itemDropTarget, itemMoveTarget, validateStates, type Category, type DayModel } from './logic';
 import type { DayState } from './types';
 import { useDay, type StructOp } from './store';
 
@@ -33,6 +34,51 @@ function MoveButtons({ name, up, down, disabled, onMove }: { name: string; up: n
   );
 }
 
+type Run = (op: StructOp, args: (string | number)[], after?: () => void) => Promise<void>;
+
+/** Дела одной категории в редакторе: переименовать, перетащить или сдвинуть стрелками, добавить. */
+function CategoryItems({ cat: c, locked, edit, setEdit, run }: {
+  cat: Category; locked: boolean; edit: string | null; setEdit: (v: string | null) => void; run: Run;
+}) {
+  const drag = useReorder(c.items.map((it) => String(it.row)), (from, to) => {
+    const it = c.items[from], before = itemDropTarget(c, from, to);
+    if (before !== null) void run('moveRow', [it.row, it.name, before]);
+  }, !locked);
+  return (
+    <div style={{ paddingBottom: 8 }}>
+      {c.items.map((it, ii) => {
+        const id = String(it.row);
+        return (
+          <div key={it.row} ref={drag.register(id)} className="row" style={{ gap: 2, padding: '0 6px 0 30px', minHeight: 46, borderTop: '1px solid var(--line2)', ...drag.styleFor(id) }}>
+            {edit === `item:${it.row}` ? (
+              <InlineInput initial={it.name} placeholder="Название дела" label="Новое название дела"
+                onCancel={() => setEdit(null)} onSave={(v) => run('renameTask', [it.row, it.name, v])} />
+            ) : (
+              <>
+                <button type="button" className="grip-btn" aria-label={`Перетащить «${it.name}»`} {...drag.grip(id)}><Icon name="grip" size={16} /></button>
+                <button type="button" className="tree-name" disabled={locked} onClick={() => setEdit(`item:${it.row}`)}>
+                  {it.name}{it.sub ? <span className="muted"> · {it.sub}</span> : null}
+                </button>
+                <MoveButtons name={it.name} disabled={locked}
+                  up={itemMoveTarget(c, ii, -1)} down={itemMoveTarget(c, ii, 1)}
+                  onMove={(before) => run('moveRow', [it.row, it.name, before])} />
+              </>
+            )}
+          </div>
+        );
+      })}
+      <div style={{ padding: '8px 16px 0 44px' }}>
+        {edit === `add:${c.row}` ? (
+          <InlineInput placeholder="Новое дело" label={`Новое дело в «${c.name}»`}
+            onCancel={() => setEdit(null)} onSave={(v) => run('addTask', [c.row, v])} />
+        ) : (
+          <button type="button" className="add-pill" disabled={locked} onClick={() => setEdit(`add:${c.row}`)}>+ Дело в «{c.name}»</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** «Дела и категории»: добавить, переименовать, поменять порядок; итоги дня. Только онлайн. */
 export function DayEditor({ model }: { model: DayModel }) {
   const structure = useDay((s) => s.structure);
@@ -41,6 +87,10 @@ export function DayEditor({ model }: { model: DayModel }) {
   const [open, setOpen] = useState<string | null>(null);
   const [edit, setEdit] = useState<string | null>(null); // 'cat:<row>' | 'item:<row>' | 'add:<catRow>' | 'newcat' | 'newsolo'
   const offline = net === 'offline';
+  const catDrag = useReorder(model.cats.map((c) => String(c.row)), (from, to) => {
+    const c = model.cats[from], before = categoryDropTarget(model, from, to);
+    if (before !== null) void run('moveCategory', [c.row, c.name, before]);
+  }, !busy && !offline);
 
   async function run(op: StructOp, args: (string | number)[], after?: () => void) {
     setBusy(true);
@@ -62,15 +112,17 @@ export function DayEditor({ model }: { model: DayModel }) {
       <section className="card flush">
         {model.cats.map((c, ci) => {
           const isOpen = open === c.name;
+          const id = String(c.row);
           return (
-            <div key={c.row} style={{ borderTop: ci ? '1px solid var(--line2)' : 0 }}>
-              <div className="row" style={{ gap: 2, padding: '4px 6px 4px 8px', minHeight: 52 }}>
+            <div key={c.row} ref={catDrag.register(id)} style={{ borderTop: ci ? '1px solid var(--line2)' : 0, ...catDrag.styleFor(id) }}>
+              <div className="row" style={{ gap: 2, padding: '4px 6px 4px 4px', minHeight: 52 }}>
                 {edit === `cat:${c.row}` ? (
                   <InlineInput initial={c.name} placeholder="Название категории" label="Новое название категории"
                     onCancel={() => setEdit(null)} onSave={(v) => run('renameCategory', [c.row, c.name, v], () => setOpen(v))} />
                 ) : (
                   <>
-                    <button type="button" className="icon-btn" style={{ width: 32 }} aria-expanded={isOpen} aria-label={isOpen ? 'Свернуть' : 'Развернуть'} onClick={() => setOpen(isOpen ? null : c.name)}>
+                    <button type="button" className="grip-btn" aria-label={`Перетащить «${c.name}»`} {...catDrag.grip(id)}><Icon name="grip" size={18} /></button>
+                    <button type="button" className="icon-btn" style={{ width: 28 }} aria-expanded={isOpen} aria-label={isOpen ? 'Свернуть' : 'Развернуть'} onClick={() => setOpen(isOpen ? null : c.name)}>
                       <Icon name={isOpen ? 'chevDown' : 'chevRight'} size={16} stroke={2.4} />
                     </button>
                     <button type="button" className="tree-name" style={{ fontWeight: 700 }} disabled={busy || offline} onClick={() => setEdit(`cat:${c.row}`)}>
@@ -82,35 +134,7 @@ export function DayEditor({ model }: { model: DayModel }) {
                   </>
                 )}
               </div>
-              {isOpen && (
-                <div style={{ paddingBottom: 8 }}>
-                  {c.items.map((it, ii) => (
-                    <div key={it.row} className="row" style={{ gap: 2, padding: '0 6px 0 44px', minHeight: 46, borderTop: '1px solid var(--line2)' }}>
-                      {edit === `item:${it.row}` ? (
-                        <InlineInput initial={it.name} placeholder="Название дела" label="Новое название дела"
-                          onCancel={() => setEdit(null)} onSave={(v) => run('renameTask', [it.row, it.name, v])} />
-                      ) : (
-                        <>
-                          <button type="button" className="tree-name" disabled={busy || offline} onClick={() => setEdit(`item:${it.row}`)}>
-                            {it.name}{it.sub ? <span className="muted"> · {it.sub}</span> : null}
-                          </button>
-                          <MoveButtons name={it.name} disabled={busy || offline}
-                            up={itemMoveTarget(c, ii, -1)} down={itemMoveTarget(c, ii, 1)}
-                            onMove={(before) => run('moveRow', [it.row, it.name, before])} />
-                        </>
-                      )}
-                    </div>
-                  ))}
-                  <div style={{ padding: '8px 16px 0 44px' }}>
-                    {edit === `add:${c.row}` ? (
-                      <InlineInput placeholder="Новое дело" label={`Новое дело в «${c.name}»`}
-                        onCancel={() => setEdit(null)} onSave={(v) => run('addTask', [c.row, v])} />
-                    ) : (
-                      <button type="button" className="add-pill" disabled={busy || offline} onClick={() => setEdit(`add:${c.row}`)}>+ Дело в «{c.name}»</button>
-                    )}
-                  </div>
-                </div>
-              )}
+              {isOpen && <CategoryItems cat={c} locked={busy || offline} edit={edit} setEdit={setEdit} run={run} />}
             </div>
           );
         })}

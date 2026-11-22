@@ -24,6 +24,7 @@ interface GoalsStore {
   setStatus: (id: string, status: GoalStatus) => void;
   setDue: (id: string, due: string) => void;
   move: (id: string, dir: -1 | 1) => void;
+  reorder: (parent: string, ids: string[]) => void;
   remove: (id: string) => void;
   exportFile: (ids: string[], format: 'pdf' | 'txt', includeDone: boolean) => Promise<PdfResult & { type: string }>;
 }
@@ -133,6 +134,7 @@ export const useGoals = create<GoalsStore>((set, get) => {
       const m = moved(view(), gid, dir);
       if (m) enqueue({ kind: 'order', parent: m.parent, ids: m.ids });
     },
+    reorder: (parent, ids) => enqueue({ kind: 'order', parent, ids }),
     remove(gid) {
       enqueue({ kind: 'delete', gid, ids: [...subtree(view(), gid)] });
     },
