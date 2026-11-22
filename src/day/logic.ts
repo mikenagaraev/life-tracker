@@ -3,10 +3,13 @@ import type { DayData, DayItem, DayOp, DayState, OneOff } from './types';
 export const PLAN = '#00ffff';
 export const SKIP = /^(отмена|перенос)$/i;
 
-/** Ключ столбца «Лист1»: '2026-11-21' → '21.11'. */
+/** Год, в котором столбцы «Лист1» подписаны без года. */
+export const BASE_YEAR = 2026;
+
+/** Ключ столбца «Лист1»: '2026-11-21' → '21.11', '2027-01-01' → '1.1.2027'. */
 export function keyOf(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return `${Number(d)}.${Number(m)}`;
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d}.${m}${y === BASE_YEAR ? '' : `.${y}`}`;
 }
 
 export function norm(color: string | undefined | null): string {
