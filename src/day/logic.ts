@@ -191,3 +191,27 @@ export function categoryMoveTarget(model: DayModel, index: number, dir: -1 | 1):
   const next = cats[index + 1];
   return Math.max(next.row, ...next.items.map((i) => i.row)) + 1;
 }
+
+/* ---------- редактор состояний (saveStates в Code.gs проверяет то же самое) ---------- */
+
+/** Ошибка в списке состояний или null. */
+export function validateStates(list: DayState[]): string | null {
+  if (!list.length) return 'Нужно хотя бы одно состояние';
+  const seen: Record<string, string> = {};
+  for (const s of list) {
+    const name = s.name.trim(), color = s.color.toLowerCase();
+    if (!name) return 'У состояния нет названия';
+    if (!/^#[0-9a-f]{6}$/.test(color)) return `Неверный цвет у «${name}»`;
+    if (color === PLAN) return 'Голубой занят под «В планах»';
+    if (color === '#ffffff') return 'Белый нельзя — он значит «пусто»';
+    if (seen[color]) return `«${name}» и «${seen[color]}» одного цвета`;
+    seen[color] = name;
+  }
+  return null;
+}
+
+/** Цвета, которые были у прежних состояний и пропали: уже отмеченные ими ячейки станут «своим цветом». */
+export function droppedColors(before: DayState[], after: DayState[]): DayState[] {
+  const now = new Set(after.map((s) => s.color.toLowerCase()));
+  return before.filter((s) => !now.has(s.color.toLowerCase()));
+}

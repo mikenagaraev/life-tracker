@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '../core/icons';
-import { ConfirmButton } from '../core/ui';
-import { categoryMoveTarget, itemMoveTarget, type DayModel } from './logic';
+import { ConfirmButton, toast } from '../core/ui';
+import { PLAN, SKIP, categoryMoveTarget, droppedColors, itemMoveTarget, validateStates, type DayModel } from './logic';
+import type { DayState } from './types';
 import { useDay, type StructOp } from './store';
 
 /** Поле ввода с кнопкой: Enter — сохранить, Esc — отмена. */
@@ -145,10 +146,91 @@ export function DayEditor({ model }: { model: DayModel }) {
         </div>
       </section>
 
+      <StatesEditor />
+
       <div className="muted">
         Нажми на название, чтобы переименовать. Новое дело встаёт перед «Другое» своей категории, новая категория — перед итогами дня.
         Отметки и история при переименовании и переносе сохраняются: строка таблицы переезжает целиком.
       </div>
     </div>
+  );
+}
+
+const FRESH = ['#ff9900', '#4a86e8', '#93c47d', '#e06666', '#b4a7d6', '#f6b26b'];
+
+/** «Состояния»: цвета отметок, от лучшего к худшему. Только онлайн, проверки — как в saveStates. */
+function StatesEditor() {
+  const states = useDay((s) => s.states);
+  const net = useDay((s) => s.net);
+  const saveStates = useDay((s) => s.saveStates);
+  const [draft, setDraft] = useState<DayState[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const offline = net === 'offline';
+
+  if (!draft) {
+    return (
+      <section className="card" style={{ gap: 12 }}>
+        <div className="between"><h2>Состояния</h2>
+          <button type="button" className="chip" disabled={!states.length || offline} onClick={() => setDraft(states.map((x) => ({ ...x })))}>Изменить</button>
+        </div>
+        <div className="wrap" style={{ gap: 6 }}>
+          {states.map((x) => (
+            <span key={x.color} className="mark"><i className="swatch-dot" style={{ background: x.color }} />{x.name}</span>
+          ))}
+          <span className="mark"><i className="swatch-dot" style={{ background: PLAN }} />В планах</span>
+        </div>
+      </section>
+    );
+  }
+
+  const err = validateStates(draft);
+  const dropped = droppedColors(states, draft);
+  const dirty = JSON.stringify(draft.map((x) => [x.name.trim(), x.color.toLowerCase()])) !== JSON.stringify(states.map((x) => [x.name, x.color]));
+  const patch = (i: number, p: Partial<DayState>) => setDraft(draft.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const swap = (i: number, j: number) => { const d = draft.slice(); [d[i], d[j]] = [d[j], d[i]]; setDraft(d); };
+  const add = () => {
+    const used = new Set(draft.map((x) => x.color.toLowerCase()));
+    setDraft([...draft, { name: '', color: FRESH.find((c) => !used.has(c)) || '#888888' }]);
+  };
+  async function save() {
+    setBusy(true);
+    const ok = await saveStates(draft!.map((x) => ({ name: x.name.trim(), color: x.color.toLowerCase() })));
+    setBusy(false);
+    if (ok) { setDraft(null); toast('Состояния сохранены'); }
+  }
+
+  return (
+    <section className="card" style={{ gap: 10 }}>
+      <h2>Состояния</h2>
+      <div className="muted">Порядок — от лучшего к худшему: по нему строятся графики и уровень дня. «Перенос» и «Отмена» не считаются выполненными.</div>
+      {draft.map((x, i) => (
+        <div key={i} className="row" style={{ gap: 4 }}>
+          <label className="swatch-pick" style={{ background: x.color }} aria-label={`Цвет «${x.name || 'нового состояния'}»`}>
+            <input type="color" value={x.color} onChange={(e) => patch(i, { color: e.target.value.toLowerCase() })} />
+          </label>
+          <input className="field" style={{ flex: 1, minWidth: 0, height: 44, padding: '0 10px' }} value={x.name} maxLength={40}
+            placeholder="Название" aria-label={`Название состояния ${i + 1}`} autoFocus={!x.name && i === draft.length - 1}
+            onChange={(e) => patch(i, { name: e.target.value })} />
+          <button type="button" className="icon-btn" style={{ width: 34 }} disabled={!i} aria-label={`Выше: ${x.name}`} onClick={() => swap(i, i - 1)}><Icon name="up" size={18} /></button>
+          <button type="button" className="icon-btn" style={{ width: 34 }} disabled={i === draft.length - 1} aria-label={`Ниже: ${x.name}`} onClick={() => swap(i, i + 1)}><Icon name="down" size={18} /></button>
+          <button type="button" className="icon-btn" style={{ width: 34 }} disabled={draft.length < 2} aria-label={`Убрать: ${x.name}`} onClick={() => setDraft(draft.filter((_, j) => j !== i))}><Icon name="close" size={16} /></button>
+        </div>
+      ))}
+      <div className="row muted" style={{ gap: 10, paddingLeft: 6 }}><i className="swatch-dot" style={{ background: PLAN }} />В планах — служебное, не меняется</div>
+      <button type="button" className="add-pill" style={{ alignSelf: 'flex-start' }} onClick={add}>+ Состояние</button>
+      {err && <div className="banner err" role="alert"><Icon name="alert" size={20} /><div>{err}</div></div>}
+      {!err && dropped.length > 0 && (
+        <div className="banner" role="status"><Icon name="alert" size={20} />
+          <div>Уже отмеченные дни не перекрашиваются. Отметки цветом {dropped.map((d) => `«${d.name}»`).join(', ')} останутся в таблице как «свой цвет»
+            {dropped.some((d) => SKIP.test(d.name)) ? ' и начнут считаться выполненными' : ''}.</div>
+        </div>
+      )}
+      <div className="row" style={{ gap: 8 }}>
+        <button type="button" className="secondary" style={{ flex: 1 }} disabled={busy} onClick={() => setDraft(null)}>Отмена</button>
+        <button type="button" className="primary" style={{ flex: 2, height: 48 }} disabled={busy || !!err || !dirty || offline} onClick={save}>
+          {busy ? 'Сохраняю…' : offline ? 'Нужен интернет' : 'Сохранить'}
+        </button>
+      </div>
+    </section>
   );
 }

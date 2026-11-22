@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, buildModel, categoryMoveTarget, compactOps, isDone, itemMoveTarget, keyOf, progress, stateOf } from './logic';
+import { applyOps, buildModel, categoryMoveTarget, compactOps, droppedColors, isDone, itemMoveTarget, keyOf, progress, stateOf, validateStates } from './logic';
 import type { DayData, DayItem, DayOp } from './types';
 
 const STATES = [
@@ -106,5 +106,21 @@ describe('перемещения дел и категорий', () => {
     expect(categoryMoveTarget(m, 1, -1)).toBe(12);
     expect(categoryMoveTarget(m, 0, 1)).toBe(20); // перед итогами дня («Удовольствие»)
     expect(categoryMoveTarget(m, 1, 1)).toBeNull();
+  });
+});
+
+describe('редактор состояний', () => {
+  it('проверки — как у сервера', () => {
+    expect(validateStates(STATES)).toBeNull();
+    expect(validateStates([])).toBe('Нужно хотя бы одно состояние');
+    expect(validateStates([{ name: '  ', color: '#123456' }])).toBe('У состояния нет названия');
+    expect(validateStates([{ name: 'А', color: '#00FFFF' }])).toMatch(/Голубой/);
+    expect(validateStates([{ name: 'А', color: '#ffffff' }])).toMatch(/Белый/);
+    expect(validateStates([{ name: 'А', color: 'red' }])).toMatch(/Неверный цвет/);
+    expect(validateStates([{ name: 'А', color: '#111111' }, { name: 'Б', color: '#111111' }])).toBe('«Б» и «А» одного цвета');
+  });
+  it('пропавшие цвета', () => {
+    const after = [{ name: 'Супер!', color: '#FF00FF' }, ...STATES.slice(1, 3)];
+    expect(droppedColors(STATES, after).map((s) => s.name)).toEqual(['Перенос', 'Отмена']);
   });
 });

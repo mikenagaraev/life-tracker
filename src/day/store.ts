@@ -30,6 +30,7 @@ interface DayStore {
   deleteOneOff: (o: OneOff) => void;
   sync: (force?: boolean) => Promise<void>;
   structure: (op: StructOp, args: (string | number)[]) => Promise<boolean>;
+  saveStates: (list: DayState[]) => Promise<boolean>;
 }
 
 /** Правки структуры листа — только онлайн, строки сдвигаются (функции Code.gs через Api.gs). */
@@ -133,6 +134,24 @@ export const useDay = create<DayStore>((set, get) => {
       } catch (e) {
         toast(e instanceof Error ? e.message : String(e));
         void get().sync(true);
+        return false;
+      }
+    },
+
+    async saveStates(list) {
+      const s = get();
+      if (!s.conn) { toast('Сначала подключи таблицу'); return false; }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) { toast('Нужен интернет, чтобы сохранить состояния'); return false; }
+      try {
+        const states = await call<DayState[]>(s.conn, 'saveStates', { list }, 30000);
+        // новые состояния — сразу во все сохранённые дни, чтобы и без сети показывались они
+        const days = Object.fromEntries(Object.entries(get().days).map(([k, d]) => [k, { ...d, states }]));
+        set({ states, days });
+        await Promise.all([save(K.states, states), save(K.days, days)]);
+        void get().sync(true);
+        return true;
+      } catch (e) {
+        toast(e instanceof Error ? e.message : String(e));
         return false;
       }
     },
