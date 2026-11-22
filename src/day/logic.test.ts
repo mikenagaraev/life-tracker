@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, buildModel, compactOps, isDone, keyOf, progress, stateOf } from './logic';
+import { applyOps, buildModel, categoryMoveTarget, compactOps, isDone, itemMoveTarget, keyOf, progress, stateOf } from './logic';
 import type { DayData, DayItem, DayOp } from './types';
 
 const STATES = [
@@ -89,5 +89,22 @@ describe('трекер дня', () => {
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ kind: 'oneoffAdd', color: '#00ff00' });
+  });
+});
+
+describe('перемещения дел и категорий', () => {
+  const m = buildModel(DAY);
+  it('дело вверх/вниз внутри категории', () => {
+    const work = m.cats[0]; // строки 13, 14, 15
+    expect(itemMoveTarget(work, 0, -1)).toBeNull();
+    expect(itemMoveTarget(work, 1, -1)).toBe(13);
+    expect(itemMoveTarget(work, 0, 1)).toBe(15);
+    expect(itemMoveTarget(work, 2, 1)).toBeNull();
+  });
+  it('категория вверх/вниз', () => {
+    expect(categoryMoveTarget(m, 0, -1)).toBeNull();
+    expect(categoryMoveTarget(m, 1, -1)).toBe(12);
+    expect(categoryMoveTarget(m, 0, 1)).toBe(20); // перед итогами дня («Удовольствие»)
+    expect(categoryMoveTarget(m, 1, 1)).toBeNull();
   });
 });

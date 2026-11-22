@@ -29,7 +29,11 @@ interface DayStore {
   setOneOffColor: (o: OneOff, color: string) => void;
   deleteOneOff: (o: OneOff) => void;
   sync: (force?: boolean) => Promise<void>;
+  structure: (op: StructOp, args: (string | number)[]) => Promise<boolean>;
 }
+
+/** Правки структуры листа — только онлайн, строки сдвигаются (функции Code.gs через Api.gs). */
+export type StructOp = 'addTask' | 'addCategory' | 'renameTask' | 'renameCategory' | 'moveRow' | 'moveCategory' | 'addSummaryItem' | 'removeSummaryItem';
 
 const K = { conn: 'conn:day', days: 'day:days', queue: 'day:queue', states: 'day:states', lastSync: 'day:lastSync' };
 const KEEP_DAYS = 60;
@@ -112,6 +116,25 @@ export const useDay = create<DayStore>((set, get) => {
 
     deleteOneOff(o) {
       enqueue({ id: uid('d'), kind: 'oneoffDelete', iso: get().iso, oneId: o.id });
+    },
+
+    async structure(op, args) {
+      const s = get();
+      if (!s.conn) { toast('Сначала подключи таблицу'); return false; }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast('Нужен интернет: дела и категории меняются только онлайн');
+        return false;
+      }
+      try {
+        await get().sync(); // сначала отправить отметки — их строки сейчас сдвинутся
+        await call(s.conn, 'struct', { op, args });
+        await get().sync(true);
+        return true;
+      } catch (e) {
+        toast(e instanceof Error ? e.message : String(e));
+        void get().sync(true);
+        return false;
+      }
     },
 
     sync(force = false) {

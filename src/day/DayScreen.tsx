@@ -4,6 +4,7 @@ import { addDays, dayLabel, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
 import { ConfirmButton, Sheet, toast } from '../core/ui';
 import { PLAN, buildModel, catCounts, norm, progress, searchItems, stateOf, type Category } from './logic';
+import { DayEditor } from './DayEditor';
 import { useDay } from './store';
 import type { DayData, DayItem, DayState, OneOff } from './types';
 
@@ -177,7 +178,7 @@ function Comment({ iso, value }: { iso: string; value: string }) {
   );
 }
 
-type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' };
+type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' } | { kind: 'edit' };
 
 export function DayScreen({ onSettings }: { onSettings: () => void }) {
   const iso = useDay((s) => s.iso);
@@ -276,6 +277,8 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
 
           <div className="row chip-scroll" style={{ gap: 6 }} role="group" aria-label="Разделы дня">
             <button type="button" className={'chip' + (view.kind === 'overview' ? ' on' : '')} onClick={() => setView({ kind: 'overview' })}>Обзор</button>
+            <button type="button" className={'chip' + (view.kind === 'edit' ? ' on' : '')} onClick={() => setView({ kind: 'edit' })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="pencil" size={14} />Изменить</button>
             {planned.length > 0 && <button type="button" className={'chip' + (view.kind === 'plan' ? ' on' : '')} onClick={() => setView({ kind: 'plan' })}>В планах · {planned.filter((p) => norm(p.item?.color ?? p.one?.color) === PLAN).length}</button>}
             {model.cats.map((c) => {
               const k = catCounts(c, states);
@@ -331,6 +334,8 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
             </>
           )}
 
+          {view.kind === 'edit' && <DayEditor model={model} />}
+
           {view.kind === 'plan' && (
             <section className="card flush" style={{ paddingBottom: 4 }}>
               <div style={{ padding: '12px 16px 8px' }}><h2>В планах на {dayLabel(iso).toLowerCase()}</h2></div>
@@ -353,7 +358,7 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', color: 'var(--ink)' }}>
         Цели, отчёты и графики <Icon name="external" size={16} />
       </a>
-      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Это и новые дела с категориями — пока в полной версии трекера.</div>
+      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Цели, отчёты, графики и рисунки пока там.</div>
     </div>
   );
 }

@@ -170,3 +170,24 @@ export function searchItems(model: DayModel, q: string, limit = 15): { cat: stri
   for (const c of model.cats) for (const it of c.items) if (it.name.toLowerCase().includes(s)) out.push({ cat: c.name, item: it });
   return out.slice(0, limit);
 }
+
+/* ---------- перемещения (moveRow / moveCategory в Code.gs: строка «перед которой» вставить) ---------- */
+
+/** Куда вставить дело при сдвиге на одну позицию внутри категории; null — дальше некуда. */
+export function itemMoveTarget(cat: Category, index: number, dir: -1 | 1): number | null {
+  const items = cat.items;
+  if (dir < 0) return index > 0 ? items[index - 1].row : null;
+  return index < items.length - 1 ? items[index + 1].row + 1 : null;
+}
+
+/** Куда вставить блок категории при сдвиге на одну позицию; null — дальше некуда. */
+export function categoryMoveTarget(model: DayModel, index: number, dir: -1 | 1): number | null {
+  const cats = model.cats;
+  if (dir < 0) return index > 0 ? cats[index - 1].row : null;
+  if (index >= cats.length - 1) return null;
+  const afterNext = cats[index + 2];
+  if (afterNext) return afterNext.row;
+  if (model.solos.length) return Math.min(...model.solos.map((s) => s.row));
+  const next = cats[index + 1];
+  return Math.max(next.row, ...next.items.map((i) => i.row)) + 1;
+}
