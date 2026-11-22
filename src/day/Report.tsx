@@ -27,7 +27,7 @@ function readCats(): string[] | null {
 }
 
 /** «Сводка»: период до выбранной даты, фильтр категорий, инсайты, дни, PDF. */
-export function ReportView({ iso, allCats }: { iso: string; allCats: string[] }) {
+export function ReportView({ iso, allCats, extra }: { iso: string; allCats: string[]; extra?: (from: string, to: string) => ReactNode }) {
   const [p, setP] = useState<RpPeriod>(() => (pref('day:rp') as RpPeriod) || 'day');
   const [cf, setCf] = useState(''), [ct, setCt] = useState('');
   const [cats, setCatsRaw] = useState<string[] | null>(readCats);
@@ -100,6 +100,8 @@ export function ReportView({ iso, allCats }: { iso: string; allCats: string[] })
         <h2 style={{ fontSize: 20 }}>{from === to ? dateRu(from) : from.slice(0, 7) === to.slice(0, 7) ? `${parseIso(from).getDate()}–${dateRu(to)}` : `${dateRu(from)} — ${dateRu(to)}`}</h2>
         <span className="muted">{from === to ? weekday(from) : `${span} дн.`}</span>
       </div>
+
+      {extra?.(from, to)}
 
       {noCats ? <Empty>Выбери хотя бы одну категорию</Empty>
         : span > MAX_REPORT_DAYS ? <Empty>Слишком длинный период — максимум {MAX_REPORT_DAYS} дня</Empty>

@@ -11,6 +11,7 @@ import { FinanceScreen, type FinTab } from '../finance/FinanceApp';
 import { dayTotals } from '../finance/logic';
 import { SettingsSheet, SetupScreen } from '../finance/Settings';
 import { useFinance } from '../finance/store';
+import { DayMoney, PeriodMoney } from './Money';
 
 type Tab = 'home' | 'day' | 'fin';
 
@@ -125,7 +126,12 @@ export function LifeApp() {
             <FinanceCard onOpen={() => { goFin('record'); go('fin'); }} />
           </>
         )}
-        {tab === 'day' && <DayScreen onSettings={() => setSettings('day')} />}
+        {tab === 'day' && (
+          <DayScreen onSettings={() => setSettings('day')} extras={{
+            day: (iso) => <DayMoney iso={iso} onOpen={() => { goFin('history'); go('fin'); }} onAdd={() => { goFin('record'); go('fin'); }} />,
+            report: (from, to) => <PeriodMoney from={from} to={to} onOpen={() => { goFin('stats'); go('fin'); }} />,
+          }} />
+        )}
         {tab === 'fin' && (
           !finConn ? <SetupScreen /> : (
             <>

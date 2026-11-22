@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { readConnFromHash, type Conn } from '../core/api';
 import { addDays, dayLabel, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
@@ -204,7 +204,13 @@ function Comment({ iso, value }: { iso: string; value: string }) {
 type Section = 'day' | 'report' | 'charts' | 'goals';
 type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' } | { kind: 'edit' };
 
-export function DayScreen({ onSettings }: { onSettings: () => void }) {
+/** Вставки от «Трекера жизни» (деньги за день / за период); в отдельном трекере дня их нет. */
+export interface DayExtras {
+  day?: (iso: string) => ReactNode;
+  report?: (from: string, to: string) => ReactNode;
+}
+
+export function DayScreen({ onSettings, extras }: { onSettings: () => void; extras?: DayExtras }) {
   const iso = useDay((s) => s.iso);
   const setIso = useDay((s) => s.setIso);
   const ready = useDay((s) => s.ready);
@@ -284,7 +290,7 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         <div className="banner err"><Icon name="alert" size={22} /><div><b>В таблице нет столбца для этой даты</b>Отметить этот день пока нельзя.</div></div>
       )}
 
-      {section === 'report' && <ReportView iso={iso} allCats={model?.cats.map((c) => c.name) || []} />}
+      {section === 'report' && <ReportView iso={iso} allCats={model?.cats.map((c) => c.name) || []} extra={extras?.report} />}
       {section === 'goals' && <GoalsView dayCats={model?.cats.map((c) => c.name) || []} />}
       {section === 'charts' && (model ? <ChartsView model={model} day={day} states={states} /> : <div className="skeleton" style={{ height: 240 }} />)}
 
@@ -354,6 +360,7 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
                 </section>
               )}
               <Comment iso={iso} value={day!.comment} />
+              {extras?.day?.(iso)}
             </>
           )}
 
