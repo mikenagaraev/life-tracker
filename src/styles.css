@@ -181,3 +181,20 @@ h2 { margin: 0; font: 700 17px/1.3 var(--head); }
 .chart-ctl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .chart-ctl select:first-child { grid-column: span 2; }
 .chart-ctl select { height: 40px; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 0 10px; font-size: 16px; }
+
+/* цели */
+.gl-row { display: flex; align-items: center; gap: 6px; min-height: 52px; padding: 4px 4px 4px 6px; border-top: 1px solid var(--line2); }
+.card.flush > .gl-row:first-child, .card.flush > .between + .gl-row { border-top: 0; }
+.gl-st { flex: none; width: 26px; height: 26px; border-radius: 13px; border: 2px solid var(--dash); background: var(--card); display: inline-flex; align-items: center; justify-content: center; padding: 0; color: #fff; }
+.gl-st.doing { border-color: var(--day); background: linear-gradient(90deg, var(--day) 50%, var(--card) 50%); }
+.gl-st.done { border-color: var(--inc); background: var(--inc); }
+@media (prefers-color-scheme: dark) { .gl-st.done { color: #0E1116; } }
+.gl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; border: 0; background: none; padding: 6px 0; text-align: left; }
+.gl-main:disabled { opacity: 1; }
+.gl-title { font-size: 15px; line-height: 1.3; }
+.gl-row.done .gl-title { color: var(--faint); text-decoration: line-through; }
+.gl-num { color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; margin-right: 6px; }
+.gl-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); align-items: center; }
+.gl-tag { padding: 1px 7px; border-radius: 8px; background: var(--bg); color: var(--ink2); }
+.gl-due.late { color: var(--err); font-weight: 600; }
+.gl-due.today { color: var(--day); font-weight: 600; }

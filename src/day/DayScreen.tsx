@@ -5,6 +5,7 @@ import { Icon } from '../core/icons';
 import { pref } from '../core/db';
 import { ConfirmButton, Seg, Sheet, toast } from '../core/ui';
 import { ChartsView } from './Charts';
+import { GoalsView } from './GoalsScreen';
 import { ReportView } from './Report';
 import { PLAN, buildModel, catCounts, norm, progress, searchItems, stateOf, type Category } from './logic';
 import { DayEditor } from './DayEditor';
@@ -181,7 +182,7 @@ function Comment({ iso, value }: { iso: string; value: string }) {
   );
 }
 
-type Section = 'day' | 'report' | 'charts';
+type Section = 'day' | 'report' | 'charts' | 'goals';
 type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' } | { kind: 'edit' };
 
 export function DayScreen({ onSettings }: { onSettings: () => void }) {
@@ -235,9 +236,9 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
       </div>
 
       <Seg<Section> small label="Раздел трекера дня" value={section} onChange={setSection}
-        items={[{ key: 'day', label: 'День' }, { key: 'report', label: 'Сводка' }, { key: 'charts', label: 'Графики' }]} />
+        items={[{ key: 'day', label: 'День' }, { key: 'report', label: 'Сводка' }, { key: 'charts', label: 'Графики' }, { key: 'goals', label: 'Цели' }]} />
 
-      <div className="row" style={{ gap: 6 }}>
+      {section !== 'goals' && <div className="row" style={{ gap: 6 }}>
         <button type="button" className="icon-btn filled" aria-label="Предыдущий день" onClick={() => go(addDays(iso, -1))}><Icon name="chevLeft" /></button>
         <button type="button" className="pill" style={{ flex: 1, justifyContent: 'center', position: 'relative' }} onClick={() => dateRef.current?.showPicker?.()}>
           {dayLabel(iso)}
@@ -246,7 +247,7 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         </button>
         <button type="button" className="icon-btn filled" aria-label="Следующий день" onClick={() => go(addDays(iso, 1))}><Icon name="chevRight" /></button>
         {iso !== today && <button type="button" className="pill" style={{ background: 'var(--day)', color: '#fff', border: 0 }} onClick={() => go(today)}>Сегодня</button>}
-      </div>
+      </div>}
 
       {section === 'day' && <div className="col" style={{ gap: 6 }}>
         <div className="bar-track" style={{ background: 'var(--seg)' }}>
@@ -265,6 +266,7 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
       )}
 
       {section === 'report' && <ReportView iso={iso} allCats={model?.cats.map((c) => c.name) || []} />}
+      {section === 'goals' && <GoalsView dayCats={model?.cats.map((c) => c.name) || []} />}
       {section === 'charts' && (model ? <ChartsView model={model} day={day} states={states} /> : <div className="skeleton" style={{ height: 240 }} />)}
 
       {section === 'day' && !day && <div className="skeleton" style={{ height: 320 }} />}
@@ -370,7 +372,7 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', color: 'var(--ink)' }}>
         Полная версия трекера <Icon name="external" size={16} />
       </a>
-      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Цели и рисунки дня пока там.</div>
+      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Рисунки дня и редактор состояний пока там.</div>
     </div>
   );
 }
