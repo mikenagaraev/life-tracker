@@ -3,6 +3,7 @@ import { monthGen, monthName, num, parseIso, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
 import { Seg } from '../core/ui';
 import { computeStats, periodRange, shiftAnchor, type Bucket, type Period } from './logic';
+import { BudgetCard } from './Budgets';
 import { useFinance } from './store';
 
 function rangeTitle(period: Period, from: string, to: string): string {
@@ -108,6 +109,8 @@ export function Stats() {
         </div>
       </div>
       {st.unknown > 0 && <div className="muted">{st.unknown} записей без курса — посчитаю после синхронизации.</div>}
+
+      {period === 'month' && <BudgetCard range={range} />}
 
       <section className="card" style={{ gap: 14 }}>
         <div className="between" style={{ alignItems: 'baseline' }}>

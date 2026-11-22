@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CATS } from './data';
 import {
-  ackPending, addCat, children, computeStats, convert, dayTotals, findByNames, mergeOps, moveCat, nameTaken,
+  ackPending, addCat, budgetStatus, children, computeStats, monthPace, convert, dayTotals, findByNames, mergeOps, moveCat, nameTaken,
   opCategory, periodRange, shiftAnchor, valueIn,
 } from './logic';
 import type { Op, Rates } from './types';
@@ -122,5 +122,29 @@ describe('формат', () => {
     expect(dayLabel('2026-11-21', '2026-11-21')).toBe('Сегодня, 21 ноября');
     expect(dayLabel('2026-11-20', '2026-11-21')).toBe('Вчера, 20 ноября');
     expect(dayLabel('2025-11-19', '2026-11-21')).toBe('19 ноября 2025');
+  });
+});
+
+describe('бюджеты', () => {
+  const op = (id: string, cat: string, gel: number, date = '2026-11-10', type: Op['type'] = 'exp'): Op =>
+    ({ id, date, time: '10:00', type, amount: gel, cur: 'GEL', pay: 'Карта', cat, sub: '', comment: '', gel, usd: gel / 2.7, updated: 0 });
+  const range = { from: '2026-11-01', to: '2026-11-30' };
+  it('считает потраченное по категориям с лимитом', () => {
+    const ops = [op('a', 'Еда', 300), op('b', 'Еда', 250), op('c', 'Транспорт', 120), op('d', 'Еда', 999, '2026-10-31'), op('e', 'Еда', 50, '2026-11-12', 'inc'), op('f', 'Дом', 70)];
+    const r = budgetStatus(ops, range, { Еда: 500, Транспорт: 400, Подарки: 0 }, 'GEL', null, 0.5);
+    expect(r.lines.map((l) => [l.cat, l.spent, l.state])).toEqual([['Еда', 550, 'over'], ['Транспорт', 120, 'ok']]);
+    expect(r.limit).toBe(900);
+    expect(r.spent).toBe(670);
+    expect(r.lines[0].left).toBe(-50);
+  });
+  it('предупреждает, если тратим быстрее, чем идёт месяц', () => {
+    const r = budgetStatus([op('a', 'Еда', 350)], range, { Еда: 500 }, 'GEL', null, 0.4);
+    expect(r.lines[0].state).toBe('warn');
+    expect(budgetStatus([op('a', 'Еда', 350)], range, { Еда: 500 }, 'GEL', null, 0.7).lines[0].state).toBe('ok');
+  });
+  it('доля месяца', () => {
+    expect(monthPace(range, '2026-11-15')).toBe(0.5);
+    expect(monthPace(range, '2026-12-02')).toBe(1);
+    expect(monthPace(range, '2026-10-02')).toBe(0);
   });
 });

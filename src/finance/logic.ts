@@ -248,3 +248,41 @@ export function dayTotals(ops: Op[]): { cur: string; exp: number; inc: number }[
   }
   return [...m.entries()].map(([cur, t]) => ({ cur, ...t }));
 }
+
+/* ---------- бюджеты: месячный лимит на верхнюю категорию приобретений ---------- */
+
+export type Budgets = Record<string, number>; // название верхней категории → лимит в месяц
+
+export interface BudgetLine {
+  cat: string;
+  limit: number;
+  spent: number;
+  left: number;
+  pct: number; // 0..∞, доля потраченного
+  state: 'ok' | 'warn' | 'over';
+}
+
+/**
+ * Сколько потрачено по каждой категории с бюджетом в месяце range (в валюте бюджета).
+ * pace — какая доля месяца прошла (для текущего месяца): «warn», если тратим заметно быстрее.
+ */
+export function budgetStatus(all: Op[], range: Range, budgets: Budgets, cur: 'USD' | 'GEL', rates: Rates | null, pace = 1): { lines: BudgetLine[]; limit: number; spent: number } {
+  const spentBy = new Map<string, number>();
+  for (const o of all) {
+    if (o.deleted || o.type !== 'exp' || o.date < range.from || o.date > range.to || !(o.cat in budgets)) continue;
+    spentBy.set(o.cat, (spentBy.get(o.cat) || 0) + (valueIn(o, cur, rates) || 0));
+  }
+  const lines = Object.entries(budgets).filter(([, l]) => l > 0).map(([cat, limit]): BudgetLine => {
+    const spent = spentBy.get(cat) || 0, pct = spent / limit;
+    return { cat, limit, spent, left: limit - spent, pct, state: pct > 1 ? 'over' : pct >= 0.9 || pct > pace + 0.15 ? 'warn' : 'ok' };
+  }).sort((a, b) => b.pct - a.pct);
+  return { lines, limit: lines.reduce((s, l) => s + l.limit, 0), spent: lines.reduce((s, l) => s + l.spent, 0) };
+}
+
+/** Доля прошедшего месяца на дату today (для прошлых месяцев — 1, для будущих — 0). */
+export function monthPace(range: Range, today: string): number {
+  if (today > range.to) return 1;
+  if (today < range.from) return 0;
+  const days = Number(range.to.slice(8));
+  return Number(today.slice(8)) / days;
+}

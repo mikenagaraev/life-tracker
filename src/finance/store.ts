@@ -7,9 +7,11 @@ import type { CatNode, Op, Rates } from './types';
 
 export type NetState = 'idle' | 'syncing' | 'offline' | 'error' | 'auth' | 'setup';
 
-interface Settings {
+export interface Settings {
   mine: string[];
   statsCur: 'USD' | 'GEL';
+  budgets?: Record<string, number>; // месячный лимит по верхней категории приобретений
+  budgetCur?: 'USD' | 'GEL';
 }
 
 interface FinanceState {

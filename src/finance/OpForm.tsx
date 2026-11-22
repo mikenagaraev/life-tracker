@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { dayLabel, nowTime, num, parseAmount, todayIso, uid } from '../core/format';
+import { dayLabel, monthName, nowTime, num, parseAmount, todayIso, uid } from '../core/format';
 import { Icon } from '../core/icons';
 import { ConfirmButton, toast } from '../core/ui';
 import { CurrencySheet, TYPE_UI } from './components';
 import { QUICK, currency } from './data';
-import { addCat, children, convert, findByNames, nameTaken, opCategory, pathTo } from './logic';
+import { addCat, budgetStatus, children, convert, findByNames, nameTaken, opCategory, pathTo, periodRange } from './logic';
 import { useFinance } from './store';
 import type { Op, OpType, Pay } from './types';
 
@@ -230,6 +230,8 @@ export function OpForm({ initial, onDone, aside, startType }: { initial?: Op; on
         );
       })}
 
+      {type === 'exp' && path[0] && <BudgetHint cat={path[0].name} date={date} skip={initial?.id} />}
+
       <div className="card">
         <label className="label" htmlFor="comment">Комментарий</label>
         <textarea id="comment" className="field" rows={2} placeholder="Что это было?" value={comment} onChange={(e) => setComment(e.target.value)} />
@@ -256,6 +258,23 @@ export function OpForm({ initial, onDone, aside, startType }: { initial?: Op; on
       </div>
 
       {curOpen && <CurrencySheet value={cur} onPick={setCur} onClose={() => setCurOpen(false)} />}
+    </div>
+  );
+}
+
+/** «Еда: осталось 320 ₾ из 800 в ноябре» — если у категории есть бюджет. */
+function BudgetHint({ cat, date, skip }: { cat: string; date: string; skip?: string }) {
+  const limit = useFinance((s) => s.settings.budgets?.[cat]);
+  const cur = useFinance((s) => s.settings.budgetCur || 'GEL');
+  const ops = useFinance((s) => s.ops);
+  const rates = useFinance((s) => s.rates);
+  if (!limit) return null;
+  const range = periodRange('month', date);
+  const l = budgetStatus(Object.values(ops).filter((o) => o.id !== skip), range, { [cat]: limit }, cur, rates).lines[0];
+  const sym = cur === 'USD' ? '$' : '₾';
+  return (
+    <div className="muted" style={{ padding: '0 4px', color: l.left < 0 ? 'var(--err)' : undefined }}>
+      Бюджет «{cat}» на {monthName(Number(date.slice(5, 7)) - 1).toLowerCase()}: {l.left >= 0 ? `осталось ${num(l.left, 0)} ${sym} из ${num(limit, 0)}` : `уже перерасход ${num(-l.left, 0)} ${sym}`}
     </div>
   );
 }
