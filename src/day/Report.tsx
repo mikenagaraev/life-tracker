@@ -373,7 +373,7 @@ function DayDetail({ d }: { d: RpDay }) {
       {d.notes.length > 0 && <div style={{ fontSize: 14 }}><span className="caps">Пометки </span>{d.notes.map((x) => `${x.name}: ${x.note}`).join('; ')}</div>}
       {left.length > 0 && <div style={{ fontSize: 14 }}><span className="caps">Не сделано из плана </span>{left.join(' · ')}</div>}
       {d.comment && <Quote text={d.comment} />}
-      {(d.drawings.amp || d.drawings.pic) && <div className="muted">Есть рисунок дня — он попадёт в PDF и виден в полной версии.</div>}
+      {(d.drawings.amp || d.drawings.pic) && <div className="muted">Есть рисунок дня — он в «Графиках» этого дня и в PDF.</div>}
     </>
   );
 }

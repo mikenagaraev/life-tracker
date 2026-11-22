@@ -5,6 +5,7 @@ import {
 } from './analytics';
 import { CountChart, LevelChart } from './ChartKit';
 import type { DayModel } from './logic';
+import { Sketch } from './Sketch';
 import { HIST_KEY, chartsOf, useDayStats } from './statsStore';
 import type { ChartCfg, ChartKind, ChartPeriod, DayData, DayState } from './types';
 
@@ -58,6 +59,21 @@ export function ChartsView({ model, day, states }: { model: DayModel; day: DayDa
           onClick={() => setCharts([...charts, { field: 'all', kind: 'count', period: 30 }])}>+ Добавить график</button>
       )}
       {h && <div className="muted">Графики сохраняются в таблице и видны в полной версии трекера.</div>}
+
+      {day && (
+        <section className="card" style={{ gap: 12 }}>
+          <h2>Рисунки дня</h2>
+          <div className="col" style={{ gap: 4 }}>
+            <span className="label">Амплитуда дня</span>
+            <span className="muted">Проведи пальцем линию состояния от утра к ночи</span>
+          </div>
+          <Sketch key={`amp-${day.iso}`} iso={day.iso} dtype="amp" value={day.drawings?.amp || ''} height={170} colors={['ink']} amp label="Амплитуда дня" />
+          <span className="label" style={{ marginTop: 6 }}>Рисунок дня</span>
+          <Sketch key={`pic-${day.iso}`} iso={day.iso} dtype="pic" value={day.drawings?.pic || ''} height={280}
+            colors={['ink', '#F2C230', '#CDBBA0', '#e06666', '#4a86e8', '#93c47d']} label="Рисунок дня" />
+          <div className="muted">Сохраняется само, работает и без интернета. Рисунки попадают в PDF сводки.</div>
+        </section>
+      )}
     </div>
   );
 }

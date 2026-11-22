@@ -372,7 +372,6 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', color: 'var(--ink)' }}>
         Полная версия трекера <Icon name="external" size={16} />
       </a>
-      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Рисунки дня пока там.</div>
     </div>
   );
 }

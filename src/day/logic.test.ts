@@ -124,3 +124,14 @@ describe('редактор состояний', () => {
     expect(droppedColors(STATES, after).map((s) => s.name)).toEqual(['Перенос', 'Отмена']);
   });
 });
+
+describe('рисунки дня', () => {
+  const dr = (id: string, data: string, dtype: 'amp' | 'pic' = 'amp', iso = DAY.iso): DayOp => ({ id, kind: 'drawing', iso, dtype, data });
+  it('в очереди только последняя версия каждого рисунка', () => {
+    expect(compactOps([dr('a', '[1]'), dr('b', '[1,2]'), dr('c', '[9]', 'pic'), dr('d', '', 'amp', '2026-11-20')]).map((o) => o.id)).toEqual(['b', 'c', 'd']);
+  });
+  it('неотправленный рисунок виден сразу', () => {
+    const d = applyOps(DAY, [dr('a', '[[1]]'), dr('b', '[[2]]', 'pic')]);
+    expect(d.drawings).toEqual({ amp: '[[1]]', pic: '[[2]]' });
+  });
+});

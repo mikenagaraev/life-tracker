@@ -28,8 +28,14 @@ export interface DayData {
   oneoffs: OneOff[];
   states: DayState[];
   comment: string;
+  drawings?: Drawings; // нет у дней, сохранённых до версии с рисунками
   fetched: number;
 }
+
+/** Рисунки дня: JSON-массив линий {c: цвет | 'ink', w: толщина, p: [x, y, …] в долях 0–1000}; '' — нет рисунка. */
+export interface Drawings { amp: string; pic: string }
+export type DrawType = keyof Drawings;
+export interface Stroke { c: string; w: number; p: number[] }
 
 /** Правка в очереди. key — столбец «Лист1» в формате d.m, iso — дата для разовых дел. */
 export type DayOp =
@@ -37,7 +43,8 @@ export type DayOp =
   | { id: string; kind: 'comment'; iso: string; key: string; text: string }
   | { id: string; kind: 'oneoffAdd'; iso: string; oneId: string; name: string; cat: string; color: string }
   | { id: string; kind: 'oneoffColor'; iso: string; oneId: string; color: string }
-  | { id: string; kind: 'oneoffDelete'; iso: string; oneId: string };
+  | { id: string; kind: 'oneoffDelete'; iso: string; oneId: string }
+  | { id: string; kind: 'drawing'; iso: string; dtype: DrawType; data: string };
 
 export interface ApplyResult {
   id: string;

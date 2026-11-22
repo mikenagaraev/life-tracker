@@ -105,6 +105,7 @@ export function applyOps(day: DayData, ops: DayOp[]): DayData {
   let items = day.items;
   let oneoffs = day.oneoffs;
   let comment = day.comment;
+  let drawings = day.drawings;
   for (const op of ops) {
     if (op.iso !== day.iso) continue;
     if (op.kind === 'color') {
@@ -119,9 +120,12 @@ export function applyOps(day: DayData, ops: DayOp[]): DayData {
       oneoffs = oneoffs.map((o) => (o.id === op.oneId ? { ...o, color: op.color || PLAN } : o));
     } else if (op.kind === 'oneoffDelete') {
       oneoffs = oneoffs.filter((o) => o.id !== op.oneId);
+    } else if (op.kind === 'drawing') {
+      drawings = { amp: '', pic: '', ...drawings, [op.dtype]: op.data };
     }
   }
-  return items === day.items && oneoffs === day.oneoffs && comment === day.comment ? day : { ...day, items, oneoffs, comment };
+  return items === day.items && oneoffs === day.oneoffs && comment === day.comment && drawings === day.drawings
+    ? day : { ...day, items, oneoffs, comment, drawings };
 }
 
 /**
@@ -143,6 +147,10 @@ export function compactOps(ops: DayOp[]): DayOp[] {
     }
     if (op.kind === 'comment') {
       const i = out.findIndex((o) => o.kind === 'comment' && o.iso === op.iso);
+      if (i >= 0) out.splice(i, 1);
+    }
+    if (op.kind === 'drawing') { // рисунок уходит целиком — нужна только последняя версия
+      const i = out.findIndex((o) => o.kind === 'drawing' && o.iso === op.iso && o.dtype === op.dtype);
       if (i >= 0) out.splice(i, 1);
     }
     if (op.kind === 'oneoffColor') {

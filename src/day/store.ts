@@ -4,7 +4,7 @@ import { load, save } from '../core/db';
 import { addDays, todayIso, uid } from '../core/format';
 import { toast } from '../core/ui';
 import { PLAN, applyOps, compactOps, keyOf, norm } from './logic';
-import type { ApplyResult, DayData, DayItem, DayOp, DayState, OneOff } from './types';
+import type { ApplyResult, DayData, DayItem, DayOp, DayState, DrawType, OneOff } from './types';
 
 export type DayNet = 'idle' | 'syncing' | 'offline' | 'error' | 'auth' | 'setup';
 
@@ -28,6 +28,7 @@ interface DayStore {
   addOneOff: (name: string, cat: string) => void;
   setOneOffColor: (o: OneOff, color: string) => void;
   deleteOneOff: (o: OneOff) => void;
+  setDrawing: (iso: string, dtype: DrawType, data: string) => void;
   sync: (force?: boolean) => Promise<void>;
   structure: (op: StructOp, args: (string | number)[]) => Promise<boolean>;
   saveStates: (list: DayState[]) => Promise<boolean>;
@@ -117,6 +118,9 @@ export const useDay = create<DayStore>((set, get) => {
 
     deleteOneOff(o) {
       enqueue({ id: uid('d'), kind: 'oneoffDelete', iso: get().iso, oneId: o.id });
+    },
+    setDrawing(iso, dtype, data) {
+      enqueue({ id: uid('d'), kind: 'drawing', iso, dtype, data });
     },
 
     async structure(op, args) {
