@@ -34,6 +34,7 @@ let running: Promise<void> | null = null;
 let again = false;
 let retry: ReturnType<typeof setTimeout> | undefined;
 const inflight = new Set<string>();
+let kick: ReturnType<typeof setTimeout> | undefined;
 
 /** Правка без id (id добавит очередь); распределённый Omit, чтобы не потерять поля вариантов. */
 type NewOp = GoalOp extends infer T ? (T extends GoalOp ? Omit<T, 'id'> : never) : never;
@@ -48,7 +49,8 @@ export const useGoals = create<GoalsStore>((set, get) => {
     const queue = [...q.filter((o) => inflight.has(o.id)), ...compactGoalOps([...q.filter((o) => !inflight.has(o.id)), { ...op, id: uid('o') } as GoalOp])];
     set({ queue });
     void save(K.queue, queue);
-    void get().sync();
+    clearTimeout(kick); // несколько правок подряд — одной отправкой
+    kick = setTimeout(() => void get().sync(), 1200);
   }
 
   async function runSync() {
