@@ -5,6 +5,7 @@ import { Seg, Sheet } from '../core/ui';
 import { TYPE_UI } from './components';
 import { currency } from './data';
 import { children, dayTotals, sortOps } from './logic';
+import { ExportSheet } from './ExportSheet';
 import { OpForm } from './OpForm';
 import { useFinance } from './store';
 import type { Op, OpType } from './types';
@@ -12,6 +13,7 @@ import type { Op, OpType } from './types';
 type Filter = 'all' | OpType;
 
 export function History() {
+  const [exporting, setExporting] = useState(false);
   const opsMap = useFinance((s) => s.ops);
   const pending = useFinance((s) => s.pending);
   const cats = useFinance((s) => s.cats);
@@ -41,15 +43,21 @@ export function History() {
 
   return (
     <div className="col" style={{ gap: 16 }}>
+      {exporting && <ExportSheet onClose={() => setExporting(false)} />}
       <div className="col" style={{ gap: 10 }}>
         <Seg<Filter> small label="Фильтр" value={filter} onChange={setFilter} cols="0.8fr 1.4fr 1fr 1fr"
           items={[{ key: 'all', label: 'Все' }, { key: 'exp', label: 'Приобретения' }, { key: 'inc', label: 'Доходы' }, { key: 'oth', label: 'Другое' }]} />
-        <label className="row field" style={{ padding: '0 12px', height: 44 }}>
-          <Icon name="search" size={18} />
-          <span className="sr">Поиск по записям</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск: категория, комментарий, сумма"
-            style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 16 }} />
-        </label>
+        <div className="row" style={{ gap: 8 }}>
+          <label className="row field" style={{ padding: '0 12px', height: 44, flex: 1 }}>
+            <Icon name="search" size={18} />
+            <span className="sr">Поиск по записям</span>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск: категория, комментарий, сумма"
+              style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 16 }} />
+          </label>
+          <button type="button" className="icon-btn filled" aria-label="Выгрузить в Excel" title="Выгрузить в Excel" onClick={() => setExporting(true)}>
+            <Icon name="lend" size={20} />
+          </button>
+        </div>
       </div>
 
       {!ready && <div className="skeleton" style={{ height: 180 }} />}
