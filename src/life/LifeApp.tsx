@@ -41,6 +41,7 @@ function BigCard({ color, icon, title, onClick, children }: { color: string; ico
 function DayCard({ onOpen }: { onOpen: () => void }) {
   const days = useDay((s) => s.days);
   const queue = useDay((s) => s.queue);
+  const acked = useDay((s) => s.acked);
   const conn = useDay((s) => s.conn);
   const today = todayIso();
   const info = useMemo(() => {
@@ -50,7 +51,7 @@ function DayCard({ onOpen }: { onOpen: () => void }) {
     const p = progress(m, d.states);
     const planned = m.cats.reduce((n, c) => n + c.items.filter((i) => norm(i.color) === PLAN).length + c.oneoffs.filter((o) => norm(o.color) === PLAN).length, 0);
     return { ...p, planned };
-  }, [days, queue, today]);
+  }, [days, queue, acked, today]);
   return (
     <BigCard color="var(--day)" icon="check" title="Трекер дня" onClick={onOpen}>
       {!conn ? (

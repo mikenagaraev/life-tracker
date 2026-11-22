@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '../core/icons';
 import { ConfirmButton, toast } from '../core/ui';
-import { useReorder } from '../core/reorder';
-import { PLAN, SKIP, categoryDropTarget, categoryMoveTarget, droppedColors, itemDropTarget, itemMoveTarget, validateStates, type Category, type DayModel } from './logic';
+import { moveItem, useReorder } from '../core/reorder';
+import { PLAN, SKIP, categoryDropTarget, droppedColors, itemDropTarget, validateStates, type Category, type DayModel } from './logic';
 import type { DayState } from './types';
 import { useDay, type StructOp } from './store';
 
@@ -21,32 +21,24 @@ function InlineInput({ initial = '', placeholder, onSave, onCancel, label }: {
   );
 }
 
-function MoveButtons({ name, up, down, disabled, onMove }: { name: string; up: number | null; down: number | null; disabled: boolean; onMove: (before: number) => void }) {
-  return (
-    <>
-      <button type="button" className="icon-btn" style={{ width: 36 }} disabled={disabled || up === null} aria-label={`Выше: ${name}`} onClick={() => up !== null && onMove(up)}>
-        <Icon name="up" size={18} />
-      </button>
-      <button type="button" className="icon-btn" style={{ width: 36 }} disabled={disabled || down === null} aria-label={`Ниже: ${name}`} onClick={() => down !== null && onMove(down)}>
-        <Icon name="down" size={18} />
-      </button>
-    </>
-  );
-}
 
 type Run = (op: StructOp, args: (string | number)[], after?: () => void) => Promise<void>;
 
 /** Дела одной категории в редакторе: переименовать, перетащить или сдвинуть стрелками, добавить. */
-function CategoryItems({ cat: c, locked, edit, setEdit, run }: {
+function CategoryItems({ cat: c, locked, edit, setEdit, run, order, onOrder }: {
   cat: Category; locked: boolean; edit: string | null; setEdit: (v: string | null) => void; run: Run;
+  order: number[] | null; onOrder: (rows: number[] | null) => void;
 }) {
-  const drag = useReorder(c.items.map((it) => String(it.row)), (from, to) => {
+  const items = order ? order.map((r) => c.items.find((it) => it.row === r)!).filter(Boolean) : c.items;
+  const drag = useReorder(items.map((it) => String(it.row)), (from, to) => {
     const it = c.items[from], before = itemDropTarget(c, from, to);
-    if (before !== null) void run('moveRow', [it.row, it.name, before]);
+    if (before === null) return;
+    onOrder(moveItem(c.items.map((x) => x.row), from, to)); // новый порядок виден сразу, таблица догоняет
+    void run('moveRow', [it.row, it.name, before]).finally(() => onOrder(null));
   }, !locked);
   return (
     <div style={{ paddingBottom: 8 }}>
-      {c.items.map((it, ii) => {
+      {items.map((it) => {
         const id = String(it.row);
         return (
           <div key={it.row} ref={drag.register(id)} className="row" style={{ gap: 2, padding: '0 6px 0 30px', minHeight: 46, borderTop: '1px solid var(--line2)', ...drag.styleFor(id) }}>
@@ -59,9 +51,6 @@ function CategoryItems({ cat: c, locked, edit, setEdit, run }: {
                 <button type="button" className="tree-name" disabled={locked} onClick={() => setEdit(`item:${it.row}`)}>
                   {it.name}{it.sub ? <span className="muted"> · {it.sub}</span> : null}
                 </button>
-                <MoveButtons name={it.name} disabled={locked}
-                  up={itemMoveTarget(c, ii, -1)} down={itemMoveTarget(c, ii, 1)}
-                  onMove={(before) => run('moveRow', [it.row, it.name, before])} />
               </>
             )}
           </div>
@@ -87,9 +76,15 @@ export function DayEditor({ model }: { model: DayModel }) {
   const [open, setOpen] = useState<string | null>(null);
   const [edit, setEdit] = useState<string | null>(null); // 'cat:<row>' | 'item:<row>' | 'add:<catRow>' | 'newcat' | 'newsolo'
   const offline = net === 'offline';
-  const catDrag = useReorder(model.cats.map((c) => String(c.row)), (from, to) => {
+  // Порядок после перетаскивания показываем сразу, пока таблица переставляет строки (это несколько секунд).
+  const [catOrder, setCatOrder] = useState<number[] | null>(null);
+  const [itemOrder, setItemOrder] = useState<{ cat: number; rows: number[] } | null>(null);
+  const cats = catOrder ? catOrder.map((r) => model.cats.find((c) => c.row === r)!).filter(Boolean) : model.cats;
+  const catDrag = useReorder(cats.map((c) => String(c.row)), (from, to) => {
     const c = model.cats[from], before = categoryDropTarget(model, from, to);
-    if (before !== null) void run('moveCategory', [c.row, c.name, before]);
+    if (before === null) return;
+    setCatOrder(moveItem(model.cats.map((x) => x.row), from, to));
+    void run('moveCategory', [c.row, c.name, before]).finally(() => setCatOrder(null));
   }, !busy && !offline);
 
   async function run(op: StructOp, args: (string | number)[], after?: () => void) {
@@ -107,10 +102,10 @@ export function DayEditor({ model }: { model: DayModel }) {
           <div><b>Нужен интернет</b>Дела и категории меняются только онлайн: при этом сдвигаются строки таблицы.</div>
         </div>
       )}
-      {busy && <div className="banner" role="status" style={{ background: 'var(--exp-soft)', borderColor: 'transparent', color: 'var(--ink)' }}><Icon name="sync" size={20} /><div>Сохраняю в таблицу…</div></div>}
+      {busy && <div className="banner" role="status" style={{ background: 'var(--exp-soft)', borderColor: 'transparent', color: 'var(--ink)', position: 'sticky', top: 8, zIndex: 6 }}><Icon name="sync" size={20} /><div>Сохраняю в таблицу…</div></div>}
 
       <section className="card flush">
-        {model.cats.map((c, ci) => {
+        {cats.map((c, ci) => {
           const isOpen = open === c.name;
           const id = String(c.row);
           return (
@@ -128,13 +123,11 @@ export function DayEditor({ model }: { model: DayModel }) {
                     <button type="button" className="tree-name" style={{ fontWeight: 700 }} disabled={busy || offline} onClick={() => setEdit(`cat:${c.row}`)}>
                       {c.name} <span className="muted" style={{ fontWeight: 500 }}>· {c.items.length}</span>
                     </button>
-                    <MoveButtons name={c.name} disabled={busy || offline}
-                      up={categoryMoveTarget(model, ci, -1)} down={categoryMoveTarget(model, ci, 1)}
-                      onMove={(before) => run('moveCategory', [c.row, c.name, before])} />
                   </>
                 )}
               </div>
-              {isOpen && <CategoryItems cat={c} locked={busy || offline} edit={edit} setEdit={setEdit} run={run} />}
+              {isOpen && <CategoryItems cat={c} locked={busy || offline} edit={edit} setEdit={setEdit} run={run}
+                order={itemOrder?.cat === c.row ? itemOrder.rows : null} onOrder={(rows) => setItemOrder(rows ? { cat: c.row, rows } : null)} />}
             </div>
           );
         })}
@@ -173,7 +166,7 @@ export function DayEditor({ model }: { model: DayModel }) {
       <StatesEditor />
 
       <div className="muted">
-        Нажми на название, чтобы переименовать. Новое дело встаёт перед «Другое» своей категории, новая категория — перед итогами дня.
+        Перетащи за ⠿, чтобы поменять порядок. Нажми на название, чтобы переименовать. Новое дело встаёт перед «Другое» своей категории, новая категория — перед итогами дня.
         Отметки и история при переименовании и переносе сохраняются: строка таблицы переезжает целиком.
       </div>
     </div>

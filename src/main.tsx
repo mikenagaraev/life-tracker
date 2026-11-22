@@ -56,4 +56,23 @@ async function boot() {
 }
 
 void boot();
-if ('serviceWorker' in navigator && import.meta.env.PROD) registerSW({ immediate: true });
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // Обновления: проверяем при запуске и каждый раз, когда приложение снова на экране
+  // (с экрана «Домой» iPhone чаще будит приложение, чем запускает заново).
+  registerSW({
+    immediate: true,
+    onRegisteredSW(_url, reg) {
+      if (!reg) return;
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void reg.update(); });
+      setInterval(() => void reg.update(), 30 * 60_000);
+    },
+  });
+  // Новая версия взяла управление — перезагружаемся один раз (очередь отметок хранится на телефоне и не теряется).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+}

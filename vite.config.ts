@@ -18,6 +18,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2}'],
         navigateFallback: null,
         cleanupOutdatedCaches: true,
+        // новая версия включается сразу, а не ждёт, пока закроют все окна (на iPhone это могло не случаться днями)
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,

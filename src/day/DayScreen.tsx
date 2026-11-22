@@ -21,7 +21,8 @@ export function useDayView(): DayData | null {
   const days = useDay((s) => s.days);
   const queue = useDay((s) => s.queue);
   const iso = useDay((s) => s.iso);
-  return useMemo(() => useDay.getState().view(iso), [days, queue, iso]); // eslint-disable-line react-hooks/exhaustive-deps
+  const acked = useDay((s) => s.acked);
+  return useMemo(() => useDay.getState().view(iso), [days, queue, acked, iso]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function DayStatus({ onSetup }: { onSetup?: () => void }) {
@@ -202,7 +203,7 @@ function Comment({ iso, value }: { iso: string; value: string }) {
 }
 
 type Section = 'day' | 'report' | 'charts' | 'goals';
-type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' } | { kind: 'edit' };
+type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' };
 
 /** Вставки от «Трекера жизни» (деньги за день / за период); в отдельном трекере дня их нет. */
 export interface DayExtras {
@@ -220,6 +221,7 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
   const setOneOffColor = useDay((s) => s.setOneOffColor);
   const day = useDayView();
   const [view, setView] = useState<View>({ kind: 'overview' });
+  const [editing, setEditing] = useState(false); // по умолчанию — просмотр и отметки; правка — по карандашу
   const [section, setSectionRaw] = useState<Section>(() => (pref('day:section') as Section) || 'day');
   const setSection = (v: Section) => { setSectionRaw(v); pref('day:section', v); };
   const [q, setQ] = useState('');
@@ -253,9 +255,12 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
   return (
     <div className="col" style={{ ...DAY_VARS, gap: 14 }}>
       <div className="between">
-        <h1>День</h1>
+        <h1>{editing && section === 'day' ? 'Правка' : 'День'}</h1>
         <div className="row" style={{ gap: 4 }}>
-          <DayStatus onSetup={onSettings} />
+          {section === 'day' && model && (editing
+            ? <button type="button" className="pill" style={{ height: 36, background: 'var(--ink)', color: 'var(--bg)', border: 0 }} onClick={() => setEditing(false)}>Готово</button>
+            : <button type="button" className="icon-btn" aria-label="Правка: дела, категории, состояния" title="Правка" onClick={() => setEditing(true)}><Icon name="pencil" size={20} /></button>)}
+          {!(editing && section === 'day') && <DayStatus onSetup={onSettings} />}
           <button type="button" className="icon-btn" aria-label="Настройки" onClick={onSettings}><Icon name="gear" /></button>
         </div>
       </div>
@@ -263,7 +268,7 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
       <Seg<Section> small label="Раздел трекера дня" value={section} onChange={setSection}
         items={[{ key: 'day', label: 'День' }, { key: 'report', label: 'Сводка' }, { key: 'charts', label: 'Графики' }, { key: 'goals', label: 'Цели' }]} />
 
-      {section !== 'goals' && <div className="row" style={{ gap: 6 }}>
+      {section !== 'goals' && !(editing && section === 'day') && <div className="row" style={{ gap: 6 }}>
         <button type="button" className="icon-btn filled" aria-label="Предыдущий день" onClick={() => go(addDays(iso, -1))}><Icon name="chevLeft" /></button>
         <button type="button" className="pill" style={{ flex: 1, justifyContent: 'center', position: 'relative' }} onClick={() => dateRef.current?.showPicker?.()}>
           {dayLabel(iso)}
@@ -274,7 +279,7 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
         {iso !== today && <button type="button" className="pill" style={{ background: 'var(--day)', color: '#fff', border: 0 }} onClick={() => go(today)}>Сегодня</button>}
       </div>}
 
-      {section === 'day' && <div className="col" style={{ gap: 6 }}>
+      {section === 'day' && !editing && <div className="col" style={{ gap: 6 }}>
         <div className="bar-track" style={{ background: 'var(--seg)' }}>
           <div className="bar-fill" style={{ width: `${prog.total ? (prog.done / prog.total) * 100 : 0}%`, background: 'var(--day)' }} />
         </div>
@@ -296,7 +301,9 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
 
       {section === 'day' && !day && <div className="skeleton" style={{ height: 320 }} />}
 
-      {section === 'day' && model && (
+      {section === 'day' && model && editing && <DayEditor model={model} />}
+
+      {section === 'day' && model && !editing && (
         <>
           <label className="row field" style={{ padding: '0 12px', height: 44 }}>
             <Icon name="search" size={18} /><span className="sr">Найти дело</span>
@@ -316,8 +323,6 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
 
           <div className="row chip-scroll" style={{ gap: 6 }} role="group" aria-label="Разделы дня">
             <button type="button" className={'chip' + (view.kind === 'overview' ? ' on' : '')} onClick={() => setView({ kind: 'overview' })}>Обзор</button>
-            <button type="button" className={'chip' + (view.kind === 'edit' ? ' on' : '')} onClick={() => setView({ kind: 'edit' })}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="pencil" size={14} />Изменить</button>
             {planned.length > 0 && <button type="button" className={'chip' + (view.kind === 'plan' ? ' on' : '')} onClick={() => setView({ kind: 'plan' })}>В планах · {planned.filter((p) => norm(p.item?.color ?? p.one?.color) === PLAN).length}</button>}
             {model.cats.map((c) => {
               const k = catCounts(c, states);
@@ -374,7 +379,6 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
             </>
           )}
 
-          {view.kind === 'edit' && <DayEditor model={model} />}
 
           {view.kind === 'plan' && (
             <section className="card flush" style={{ paddingBottom: 4 }}>

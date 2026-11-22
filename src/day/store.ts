@@ -13,6 +13,7 @@ interface DayStore {
   conn: Conn | null;
   days: Record<string, DayData>; // копия с сервера по датам
   queue: DayOp[];
+  acked: (DayOp & { at: number })[]; // приняты сервером, но свежая копия дня ещё не пришла
   states: DayState[];
   iso: string; // выбранная дата
   net: DayNet;
@@ -66,6 +67,7 @@ export const useDay = create<DayStore>((set, get) => {
     conn: null,
     days: {},
     queue: [],
+    acked: [],
     states: [],
     iso: todayIso(),
     net: 'idle',
@@ -98,7 +100,12 @@ export const useDay = create<DayStore>((set, get) => {
 
     view(iso = get().iso) {
       const d = get().days[iso];
-      return d ? applyOps(d, get().queue) : null;
+      if (!d) return null;
+      // Отметка, которую сервер уже принял, держится на экране, пока не придёт день, запрошенный после этого
+      // (иначе запоздавший ответ со старыми данными на миг «снимает» отметку).
+      const asOf = d.asOf ?? d.fetched;
+      const acked = get().acked.filter((o) => o.iso === iso && o.at > asOf);
+      return applyOps(acked.length ? applyOps(d, acked) : d, get().queue);
     },
 
     setColor(item, color) {
@@ -183,16 +190,19 @@ export const useDay = create<DayStore>((set, get) => {
         try {
           // Свежие данные: выбранный день и соседние (листать без ожидания).
           const want = () => { const iso = get().iso; return [iso, addDays(iso, -1), addDays(iso, 1)]; };
-          const store = async (res: Omit<DayData, 'fetched'>[]) => {
+          const store = async (res: Omit<DayData, 'fetched'>[], asOf: number) => {
             const fetched = Date.now();
             const days = { ...get().days };
             let states = get().states;
             for (const d of res) {
-              days[d.iso] = { ...d, items: d.items.map((i) => ({ ...i, color: norm(i.color) })), fetched };
+              days[d.iso] = { ...d, items: d.items.map((i) => ({ ...i, color: norm(i.color) })), fetched, asOf };
               if (d.states?.length) states = d.states;
             }
             const trimmed = trimDays(days, get().iso);
-            set({ days: trimmed, states, lastSync: fetched });
+            const got = new Set(res.map((d) => d.iso));
+            // подтверждённое раньше начала этого запроса уже есть в данных; совсем старое — тоже убираем
+            const acked = get().acked.filter((o) => !(got.has(o.iso) && o.at < asOf) && fetched - o.at < 120_000);
+            set({ days: trimmed, states, lastSync: fetched, acked });
             await Promise.all([save(K.days, trimmed), save(K.states, states), save(K.lastSync, fetched)]);
           };
 
@@ -203,6 +213,7 @@ export const useDay = create<DayStore>((set, get) => {
             const sent = get().queue;
             sentAny = true;
             const days = [...new Set([get().iso, ...sent.map((op) => op.iso)])]; // только дни с правками — каждый день на сервере это ~2 с
+            const started = Date.now();
             const raw = await call<ApplyResult[] | { results: ApplyResult[]; days: Omit<DayData, 'fetched'>[] }>(
               s.conn, 'apply', { ops: sent, days: days.map((d) => ({ iso: d })) });
             const res = Array.isArray(raw) ? raw : raw.results;
@@ -213,9 +224,12 @@ export const useDay = create<DayStore>((set, get) => {
             }
             // Ответ получен по всем отправленным — убираем их; добавленное во время отправки остаётся.
             const queue = get().queue.filter((op) => !done.has(op.id));
+            const okIds0 = new Set(res.filter((r) => r.status === 'ok').map((r) => r.id));
+            const at = Date.now();
+            set({ acked: [...get().acked, ...sent.filter((op) => okIds0.has(op.id)).map((op) => ({ ...op, at }))] });
             if (!Array.isArray(raw)) {
               set({ queue });
-              await Promise.all([save(K.queue, queue), store(raw.days)]);
+              await Promise.all([save(K.queue, queue), store(raw.days, started)]);
             } else {
               // старый сервер: принятое переносим в копию дня, чтобы до обновления ничего не мелькало
               const okIds = new Set(res.filter((r) => r.status === 'ok').map((r) => r.id));
@@ -231,7 +245,8 @@ export const useDay = create<DayStore>((set, get) => {
           // после отправки выбранный день уже свежий; соседние подтянутся, когда на них перейдут
           const stale = force ? list : sentAny ? [] : list.filter((d) => !get().days[d] || Date.now() - get().days[d].fetched > 60_000);
           if (stale.length) {
-            await store(await call<Omit<DayData, 'fetched'>[]>(s.conn, 'days', { days: stale.map((d) => ({ key: keyOf(d), iso: d })) }));
+            const started = Date.now();
+            await store(await call<Omit<DayData, 'fetched'>[]>(s.conn, 'days', { days: stale.map((d) => ({ key: keyOf(d), iso: d })) }), started);
           }
           set({ net: 'idle' });
           if (get().queue.length) retry = setTimeout(() => void get().sync(), 800);
