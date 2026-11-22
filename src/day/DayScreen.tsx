@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { readConnFromHash, type Conn } from '../core/api';
 import { addDays, dayLabel, todayIso } from '../core/format';
 import { Icon } from '../core/icons';
-import { ConfirmButton, Sheet, toast } from '../core/ui';
+import { pref } from '../core/db';
+import { ConfirmButton, Seg, Sheet, toast } from '../core/ui';
+import { ChartsView } from './Charts';
+import { ReportView } from './Report';
 import { PLAN, buildModel, catCounts, norm, progress, searchItems, stateOf, type Category } from './logic';
 import { DayEditor } from './DayEditor';
 import { useDay } from './store';
 import type { DayData, DayItem, DayState, OneOff } from './types';
 
-/** Текущая версия трекера дня (Apps Script): цели, отчёты, графики и рисунки пока там. */
+/** Текущая версия трекера дня (Apps Script): цели и рисунки пока там. */
 export const DAY_TRACKER_URL = 'https://script.google.com/macros/s/AKfycbw0IPwXuvJGYYixIl4ng-aeE363tKm1RXZ9RFVXRr434U3RTCu3Or0zX07cxkKA5aAm/exec';
 
 const DAY_VARS = { '--acc': 'var(--day)', '--acc-soft': 'var(--day-soft)' } as CSSProperties;
@@ -178,6 +181,7 @@ function Comment({ iso, value }: { iso: string; value: string }) {
   );
 }
 
+type Section = 'day' | 'report' | 'charts';
 type View = { kind: 'overview' } | { kind: 'cat'; name: string; focus?: number } | { kind: 'plan' } | { kind: 'edit' };
 
 export function DayScreen({ onSettings }: { onSettings: () => void }) {
@@ -190,6 +194,8 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
   const setOneOffColor = useDay((s) => s.setOneOffColor);
   const day = useDayView();
   const [view, setView] = useState<View>({ kind: 'overview' });
+  const [section, setSectionRaw] = useState<Section>(() => (pref('day:section') as Section) || 'day');
+  const setSection = (v: Section) => { setSectionRaw(v); pref('day:section', v); };
   const [q, setQ] = useState('');
   const [openSolo, setOpenSolo] = useState<number | null>(null);
   const [openPlan, setOpenPlan] = useState<string | null>(null);
@@ -228,6 +234,9 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         </div>
       </div>
 
+      <Seg<Section> small label="Раздел трекера дня" value={section} onChange={setSection}
+        items={[{ key: 'day', label: 'День' }, { key: 'report', label: 'Сводка' }, { key: 'charts', label: 'Графики' }]} />
+
       <div className="row" style={{ gap: 6 }}>
         <button type="button" className="icon-btn filled" aria-label="Предыдущий день" onClick={() => go(addDays(iso, -1))}><Icon name="chevLeft" /></button>
         <button type="button" className="pill" style={{ flex: 1, justifyContent: 'center', position: 'relative' }} onClick={() => dateRef.current?.showPicker?.()}>
@@ -239,25 +248,28 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
         {iso !== today && <button type="button" className="pill" style={{ background: 'var(--day)', color: '#fff', border: 0 }} onClick={() => go(today)}>Сегодня</button>}
       </div>
 
-      <div className="col" style={{ gap: 6 }}>
+      {section === 'day' && <div className="col" style={{ gap: 6 }}>
         <div className="bar-track" style={{ background: 'var(--seg)' }}>
           <div className="bar-fill" style={{ width: `${prog.total ? (prog.done / prog.total) * 100 : 0}%`, background: 'var(--day)' }} />
         </div>
         <div className="muted">{day ? `Отмечено ${prog.done} из ${prog.total}` : ready ? 'Загружаю день…' : ''}</div>
-      </div>
+      </div>}
 
-      {net === 'offline' && (
+      {section === 'day' && net === 'offline' && (
         <div className="banner" role="status"><Icon name="cloudOff" size={22} />
           <div><b>Нет интернета — отмечай как обычно</b>Отметки сохранятся на телефоне и уйдут в таблицу, когда появится сеть.</div>
         </div>
       )}
-      {day && !day.found && (
+      {section === 'day' && day && !day.found && (
         <div className="banner err"><Icon name="alert" size={22} /><div><b>В таблице нет столбца для этой даты</b>Отметить этот день пока нельзя.</div></div>
       )}
 
-      {!day && <div className="skeleton" style={{ height: 320 }} />}
+      {section === 'report' && <ReportView iso={iso} allCats={model?.cats.map((c) => c.name) || []} />}
+      {section === 'charts' && (model ? <ChartsView model={model} day={day} states={states} /> : <div className="skeleton" style={{ height: 240 }} />)}
 
-      {model && (
+      {section === 'day' && !day && <div className="skeleton" style={{ height: 320 }} />}
+
+      {section === 'day' && model && (
         <>
           <label className="row field" style={{ padding: '0 12px', height: 44 }}>
             <Icon name="search" size={18} /><span className="sr">Найти дело</span>
@@ -356,9 +368,9 @@ export function DayScreen({ onSettings }: { onSettings: () => void }) {
 
       <a className="secondary" href={DAY_TRACKER_URL} target="_blank" rel="noreferrer"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', color: 'var(--ink)' }}>
-        Цели, отчёты и графики <Icon name="external" size={16} />
+        Полная версия трекера <Icon name="external" size={16} />
       </a>
-      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Цели, отчёты, графики и рисунки пока там.</div>
+      <div className="muted" style={{ textAlign: 'center', marginTop: -6 }}>Цели и рисунки дня пока там.</div>
     </div>
   );
 }
