@@ -15,6 +15,7 @@ interface DayStore {
   queue: DayOp[];
   acked: (DayOp & { at: number })[]; // приняты сервером, но свежая копия дня ещё не пришла
   states: DayState[];
+  trackerUrl: string; // адрес полной версии трекера — приходит с сервера, в коде приложения его нет
   iso: string; // выбранная дата
   net: DayNet;
   error: string;
@@ -38,7 +39,7 @@ interface DayStore {
 /** Правки структуры листа — только онлайн, строки сдвигаются (функции Code.gs через Api.gs). */
 export type StructOp = 'addTask' | 'addCategory' | 'renameTask' | 'renameCategory' | 'moveRow' | 'moveCategory' | 'addSummaryItem' | 'removeSummaryItem';
 
-const K = { conn: 'conn:day', days: 'day:days', queue: 'day:queue', states: 'day:states', lastSync: 'day:lastSync' };
+const K = { trackerUrl: 'day:trackerUrl', conn: 'conn:day', days: 'day:days', queue: 'day:queue', states: 'day:states', lastSync: 'day:lastSync' };
 const KEEP_DAYS = 60;
 
 let syncing: Promise<void> | null = null;
@@ -53,6 +54,14 @@ function trimDays(days: Record<string, DayData>, around: string): Record<string,
 }
 
 export const useDay = create<DayStore>((set, get) => {
+  async function loadTrackerUrl(conn: Conn) {
+    try {
+      const r = await call<{ trackerUrl?: string }>(conn, 'ping', {});
+      const trackerUrl = r.trackerUrl || '';
+      if (trackerUrl !== get().trackerUrl) { set({ trackerUrl }); await save(K.trackerUrl, trackerUrl); }
+    } catch { /* без сети — оставим сохранённый */ }
+  }
+
   function enqueue(op: DayOp) {
     const queue = compactOps([...get().queue, op]);
     set({ queue });
@@ -69,26 +78,29 @@ export const useDay = create<DayStore>((set, get) => {
     queue: [],
     acked: [],
     states: [],
+    trackerUrl: '',
     iso: todayIso(),
     net: 'idle',
     error: '',
     lastSync: 0,
 
     async init() {
-      const [conn, days, queue, states, lastSync] = await Promise.all([
+      const [conn, days, queue, states, lastSync, trackerUrl] = await Promise.all([
         load<Conn | null>(K.conn, null),
         load<Record<string, DayData>>(K.days, {}),
         load<DayOp[]>(K.queue, []),
         load<DayState[]>(K.states, []),
         load<number>(K.lastSync, 0),
+        load<string>(K.trackerUrl, ''),
       ]);
-      set({ ready: true, conn, days, queue, states, lastSync, net: conn ? 'idle' : 'setup' });
-      if (conn) void get().sync();
+      set({ ready: true, conn, days, queue, states, lastSync, trackerUrl, net: conn ? 'idle' : 'setup' });
+      if (conn) { void get().sync(); void loadTrackerUrl(conn); }
     },
 
     async setConn(conn) {
       await save(K.conn, conn);
       set({ conn, net: 'idle', error: '' });
+      void loadTrackerUrl(conn);
       await get().sync(true);
     },
 

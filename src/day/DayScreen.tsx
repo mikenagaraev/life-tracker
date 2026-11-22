@@ -12,8 +12,6 @@ import { DayEditor } from './DayEditor';
 import { useDay } from './store';
 import type { DayData, DayItem, DayState, OneOff } from './types';
 
-/** Текущая версия трекера дня (Apps Script): цели и рисунки пока там. */
-export const DAY_TRACKER_URL = 'https://script.google.com/macros/s/AKfycbw0IPwXuvJGYYixIl4ng-aeE363tKm1RXZ9RFVXRr434U3RTCu3Or0zX07cxkKA5aAm/exec';
 
 const DAY_VARS = { '--acc': 'var(--day)', '--acc-soft': 'var(--day-soft)' } as CSSProperties;
 
@@ -217,6 +215,7 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
   const ready = useDay((s) => s.ready);
   const net = useDay((s) => s.net);
   const conn = useDay((s) => s.conn);
+  const trackerUrl = useDay((s) => s.trackerUrl);
   const setColor = useDay((s) => s.setColor);
   const setOneOffColor = useDay((s) => s.setOneOffColor);
   const day = useDayView();
@@ -398,10 +397,10 @@ export function DayScreen({ onSettings, extras }: { onSettings: () => void; extr
         </>
       )}
 
-      <a className="secondary" href={DAY_TRACKER_URL} target="_blank" rel="noreferrer"
+      {trackerUrl && <a className="secondary" href={trackerUrl} target="_blank" rel="noreferrer"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', color: 'var(--ink)' }}>
         Полная версия трекера <Icon name="external" size={16} />
-      </a>
+      </a>}
     </div>
   );
 }
@@ -457,9 +456,6 @@ function DaySetup() {
         </p>
       </div>
       <div className="card"><h2>Подключить таблицу</h2><DayConnectForm /></div>
-      <a className="secondary" href={DAY_TRACKER_URL} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', color: 'var(--ink)' }}>
-        Открыть текущую версию <Icon name="external" size={16} />
-      </a>
     </div>
   );
 }
